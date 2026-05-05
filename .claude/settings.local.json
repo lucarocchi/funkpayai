@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(node -e \"const {StreamableHTTPServerTransport} = require\\('@modelcontextprotocol/sdk/server/streamableHttp.js'\\); console.log\\(typeof StreamableHTTPServerTransport\\)\")",
+      "Bash(node -e \"require\\('zod'\\)\")",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(screencapture -x /tmp/funkpayai-screenshot.png)",
+      "Bash(pkill -f \"electron.*funkpayai\")",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
+    ]
+  }
+}
