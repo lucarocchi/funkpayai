@@ -1,5 +1,5 @@
 appId: com.funkpay.funkpayai
-productName: FunkPayAI
+productName: FunkPay MCP
 copyright: Copyright © 2026 FunkPay
 
 directories:
@@ -9,28 +9,21 @@ directories:
 files:
   - out/**/*
 
-# Bitcoind binaries bundled per platform
-extraResources:
-  - from: resources/bitcoind/${os}-${arch}
-    to: bitcoind
-    filter:
-      - "**"
-
 mac:
   category: public.app-category.finance
   target:
     - target: dmg
     - target: zip
-  artifactName: FunkPayAI-${version}-${arch}.${ext}
+  artifactName: FunkPayMCP-${version}-${arch}.${ext}
 
 win:
   target:
     - target: nsis
-  artifactName: FunkPayAI-Setup-${version}.${ext}
+  artifactName: FunkPayMCP-Setup-${version}.${ext}
 
 linux:
   target:
     - target: AppImage
     - target: deb
-  artifactName: FunkPayAI-${version}-${arch}.${ext}
+  artifactName: FunkPayMCP-${version}-${arch}.${ext}
   category: Finance

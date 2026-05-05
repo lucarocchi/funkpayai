@@ -6,8 +6,13 @@ import { mkdirSync, writeFileSync } from 'fs'
 export class BitcoindManager {
   private process: ChildProcess | null = null
   private dataDir: string
+  private binaryPath: string
 
-  constructor(pruneGB: number, rpcUser: string, rpcPassword: string) {
+  private onLog: (line: string) => void
+
+  constructor(binaryPath: string, pruneGB: number, rpcUser: string, rpcPassword: string, onLog?: (line: string) => void) {
+    this.binaryPath = binaryPath
+    this.onLog = onLog ?? console.log
     this.dataDir = join(app.getPath('userData'), 'bitcoin')
     mkdirSync(this.dataDir, { recursive: true })
     this.writeConfig(pruneGB, rpcUser, rpcPassword)
@@ -30,30 +35,14 @@ export class BitcoindManager {
   start(): void {
     if (this.process) return
 
-    const bin = this.binaryPath()
-    try {
-      this.process = spawn(bin, [`-datadir=${this.dataDir}`], {
-        stdio: ['ignore', 'pipe', 'pipe']
-      })
-    } catch (e) {
-      console.warn('[bitcoind] failed to spawn:', e)
-      return
-    }
-
-    this.process.stdout?.on('data', (d) => console.log('[bitcoind]', d.toString().trim()))
-    this.process.stderr?.on('data', (d) => {
-      const msg = d.toString().trim()
-      // already running is not an error in dev
-      if (msg.includes('Cannot obtain a lock')) {
-        console.log('[bitcoind] already running, connecting to existing node')
-        this.process = null
-      } else {
-        console.error('[bitcoind]', msg)
-      }
+    this.process = spawn(this.binaryPath, [`-datadir=${this.dataDir}`], {
+      stdio: ['ignore', 'pipe', 'pipe']
     })
 
+    this.process.stdout?.on('data', (d) => this.onLog(d.toString().trim()))
+    this.process.stderr?.on('data', (d) => this.onLog(d.toString().trim()))
     this.process.on('exit', (code) => {
-      console.log(`[bitcoind] exited with code ${code}`)
+      this.onLog(`bitcoind exited with code ${code}`)
       this.process = null
     })
   }
@@ -68,21 +57,5 @@ export class BitcoindManager {
 
   isRunning(): boolean {
     return this.process !== null
-  }
-
-  private binaryPath(): string {
-    const { platform, arch } = process
-    const exe = platform === 'win32' ? 'bitcoind.exe' : 'bitcoind'
-
-    if (app.isPackaged) {
-      return join(process.resourcesPath, 'bitcoind', exe)
-    }
-
-    // dev: use binaries downloaded into resources/bitcoind/ via npm run download-bitcoind
-    const dir = platform === 'darwin'
-      ? arch === 'arm64' ? 'mac-arm64' : 'mac-x64'
-      : platform === 'win32' ? 'win-x64' : 'linux-x64'
-
-    return join(__dirname, '../../resources/bitcoind', dir, exe)
   }
 }

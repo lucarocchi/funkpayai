@@ -1,6 +1,25 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { IncomingMessage, ServerResponse, createServer } from 'http'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+
+const execAsync = promisify(exec)
+
+async function freePort(port: number): Promise<void> {
+  try {
+    if (process.platform === 'win32') {
+      const { stdout } = await execAsync(`netstat -ano | findstr :${port}`)
+      const pid = stdout.trim().split(/\s+/).pop()
+      if (pid) await execAsync(`taskkill /PID ${pid} /F`)
+    } else {
+      await execAsync(`lsof -ti :${port} | xargs kill -9`)
+    }
+    await new Promise((r) => setTimeout(r, 300))
+  } catch {
+    // nothing on the port, ignore
+  }
+}
 import { z } from 'zod'
 import { BitcoinRpc } from './rpc'
 import { loadSettings } from './settings'
@@ -100,15 +119,24 @@ export class McpServerManager {
         res.end()
         return
       }
-
-      const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: undefined
-      })
+      const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined })
       await this.server.connect(transport)
       await transport.handleRequest(req, res, await bodyOf(req))
     })
 
-    await new Promise<void>((resolve) => this.httpServer!.listen(port, '127.0.0.1', resolve))
+    await new Promise<void>((resolve, reject) => {
+      this.httpServer!.listen(port, '127.0.0.1', resolve)
+      this.httpServer!.once('error', async (err: NodeJS.ErrnoException) => {
+        if (err.code === 'EADDRINUSE') {
+          // free the port and retry once
+          await freePort(port)
+          this.httpServer!.listen(port, '127.0.0.1', resolve)
+        } else {
+          reject(err)
+        }
+      })
+    })
+
     console.log(`[mcp] listening on http://127.0.0.1:${port}/mcp`)
   }
 
