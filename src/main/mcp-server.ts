@@ -178,6 +178,66 @@ export class McpServerManager {
       }
     )
 
+    s.tool(
+      'wait_for_payment',
+      'Wait until a FunkPay invoice is detected or confirmed, according to the user\'s confirmation setting. Blocks until the payment is received or timeout is reached. Use this after create_invoice + send_payment.',
+      {
+        merchant_url: z.string().describe('Base URL of the btcfunkpay merchant server'),
+        payment_id: z.string().describe('payment_id returned by create_invoice'),
+        timeout_seconds: z.number().int().min(30).max(3600).default(1800).describe('Max wait time in seconds (default 30 min)')
+      },
+      async ({ merchant_url, payment_id, timeout_seconds }) => {
+        const settings = loadSettings()
+        const required = settings.confirmationsRequired
+        const releaseOn = required === 0 ? 'detected' : 'confirmed'
+        const base = merchant_url.replace(/\/$/, '')
+        const deadline = Date.now() + timeout_seconds * 1000
+        const POLL_INTERVAL = 15_000
+
+        while (Date.now() < deadline) {
+          try {
+            const inv = await httpGet(`${base}/invoices/${payment_id}`) as Record<string, unknown>
+            const status = inv.status as string
+            const confs = (inv.confirmations as number) ?? 0
+
+            const done =
+              required === 0
+                ? status === 'detected' || status === 'confirmed' || status === 'overpaid'
+                : (status === 'confirmed' || status === 'overpaid') && confs >= required
+
+            if (done) {
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    payment_id,
+                    status,
+                    confirmations: confs,
+                    received_sat: inv.received_sat,
+                    txid: inv.txid
+                  }, null, 2)
+                }]
+              }
+            }
+
+            if (status === 'expired') {
+              return {
+                content: [{ type: 'text', text: `Invoice ${payment_id} expired before payment was received.` }],
+                isError: true
+              }
+            }
+          } catch { /* network hiccup, retry */ }
+
+          await new Promise((r) => setTimeout(r, POLL_INTERVAL))
+        }
+
+        return {
+          content: [{ type: 'text', text: `Timeout: payment not ${releaseOn} within ${timeout_seconds}s.` }],
+          isError: true
+        }
+      }
+    )
+
     return s
   }
 

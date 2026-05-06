@@ -40,6 +40,8 @@ export interface Settings {
   // Payments
   approvalMode: ApprovalMode
   approvalThresholdSat: number
+  // 0 = release on detected (mempool), 1+ = wait N confirmations
+  confirmationsRequired: number
   // Identity
   shipping: ShippingInfo
   billing: BillingInfo
@@ -63,6 +65,7 @@ const DEFAULTS: Settings = {
   rpcPassword: 'funkpay123',
   approvalMode: 'threshold',
   approvalThresholdSat: 100_000,
+  confirmationsRequired: 1,
   mcpPort: 3282,
   pruneGB: 10,
   shipping: { ...EMPTY_SHIPPING },

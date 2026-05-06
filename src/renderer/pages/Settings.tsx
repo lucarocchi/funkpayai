@@ -51,7 +51,7 @@ export default function Settings(): JSX.Element {
 
       {/* PAYMENT APPROVAL */}
       <Section title="Payment Approval">
-        <label style={styles.label}>Mode</label>
+        <label style={styles.label}>Approval mode</label>
         <select style={styles.select} value={s.approvalMode}
           onChange={(e) => set({ approvalMode: e.target.value as ApprovalMode })}>
           <option value="never">Never — full autonomy</option>
@@ -64,6 +64,26 @@ export default function Settings(): JSX.Element {
               onChange={(e) => set({ approvalThresholdSat: Number(e.target.value) })} />
           </Field>
         )}
+
+        <div style={{ marginTop: 20, borderTop: '1px solid #2d3048', paddingTop: 16 }}>
+          <label style={styles.label}>Release agent after payment</label>
+          <select style={styles.select} value={s.confirmationsRequired === 0 ? 'detected' : 'confirmed'}
+            onChange={(e) => set({ confirmationsRequired: e.target.value === 'detected' ? 0 : (s.confirmationsRequired || 1) })}>
+            <option value="detected">Detected — tx seen in mempool (fast, unconfirmed)</option>
+            <option value="confirmed">Confirmed — wait N confirmations (safer)</option>
+          </select>
+          {s.confirmationsRequired > 0 && (
+            <Field label="Confirmations required" style={{ marginTop: 12 }}>
+              <input style={styles.input} type="number" min={1} max={6} value={s.confirmationsRequired}
+                onChange={(e) => set({ confirmationsRequired: Math.max(1, Number(e.target.value)) })} />
+              <div style={{ fontSize: 11, color: '#475569', marginTop: 4 }}>
+                {s.confirmationsRequired === 1 ? '~10 min' :
+                 s.confirmationsRequired <= 3 ? `~${s.confirmationsRequired * 10} min` :
+                 `~${s.confirmationsRequired * 10} min · recommended for large amounts`}
+              </div>
+            </Field>
+          )}
+        </div>
       </Section>
 
       {/* SHIPPING */}
