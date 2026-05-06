@@ -86,6 +86,8 @@ npm run package      # genera installer (dmg/exe/AppImage)
 | `send_payment` | Invia BTC (soggetto ad approval policy) |
 | `get_transaction` | Stato e conferme di una tx |
 | `list_transactions` | Storico transazioni |
+| `create_invoice` | Crea invoice su merchant btcfunkpay; allega shipping/billing da Settings |
+| `get_invoice_status` | Polling stato invoice su merchant btcfunkpay |
 
 **Claude Code config:**
 ```json
@@ -113,8 +115,8 @@ Configurabile in Settings:
 - ✅ bitcoind v28.0 installato e running
 - ✅ MCP server in ascolto su :3282
 - ✅ Dashboard mostra nodo verde + MCP verde
-- 🔲 Tools MCP per FunkPay (create_invoice, buy con shipping data)
-- 🔲 Shipping/billing info nelle Settings (per acquisti beni fisici)
+- ✅ Shipping/billing info nelle Settings (per acquisti beni fisici)
+- ✅ MCP tools `create_invoice` e `get_invoice_status` (integrazione merchant btcfunkpay)
 - 🔲 Light/dark theme toggle
 - 🔲 Developer ID Application certificate per distribuzione
 - 🔲 App mobile FunkPay (futuro — push notification per approvals)

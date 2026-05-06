@@ -12,5 +12,11 @@ contextBridge.exposeInMainWorld('api', {
     load: () => ipcRenderer.invoke('settings:load'),
     save: (s: unknown) => ipcRenderer.invoke('settings:save', s)
   },
+  wallet: {
+    getBalance:       () => ipcRenderer.invoke('wallet:getBalance'),
+    getNewAddress:    () => ipcRenderer.invoke('wallet:getNewAddress'),
+    send:    (address: string, amountSat: number, subtractFee?: boolean) => ipcRenderer.invoke('wallet:send', address, amountSat, subtractFee),
+    listTransactions: (limit?: number) => ipcRenderer.invoke('wallet:listTransactions', limit)
+  },
   status: () => ipcRenderer.invoke('status')
 })

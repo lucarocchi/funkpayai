@@ -12,6 +12,7 @@ app.setName('FunkPay MCP')
 let mainWindow: BrowserWindow | null = null
 let bitcoind: BitcoindManager | null = null
 let mcp: McpServerManager | null = null
+let rpcGlobal: BitcoinRpc | null = null
 
 const installer = new BitcoindInstaller()
 let logUnwatch: (() => void) | null = null
@@ -39,7 +40,7 @@ function createWindow(): void {
 export async function startServices(): Promise<void> {
   const settings = loadSettings()
 
-  const rpc = new BitcoinRpc({
+  const baseRpc = new BitcoinRpc({
     url: settings.rpcUrl,
     user: settings.rpcUser,
     password: settings.rpcPassword
@@ -53,6 +54,23 @@ export async function startServices(): Promise<void> {
     (line) => mainWindow?.webContents.send('install:log', `[node] ${line}`)
   )
   bitcoind.start()
+
+  // Wait for node to be ready, then setup wallet
+  const setupWallet = async (): Promise<BitcoinRpc> => {
+    for (let i = 0; i < 30; i++) {
+      try {
+        await baseRpc.ping()
+        await baseRpc.ensureWallet('funkpay')
+        return baseRpc.withWallet('funkpay')
+      } catch {
+        await new Promise((r) => setTimeout(r, 2000))
+      }
+    }
+    throw new Error('bitcoind did not start in time')
+  }
+
+  const rpc = await setupWallet()
+  rpcGlobal = rpc
 
   mcp = new McpServerManager(rpc, async (address, amountSat) => {
     const result = await dialog.showMessageBox(mainWindow!, {
@@ -95,6 +113,48 @@ ipcMain.handle('install:openTerminal', async () => {
   } catch (e: unknown) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }
+})
+
+// IPC — wallet
+ipcMain.handle('wallet:getBalance', async () => {
+  if (!rpcGlobal) throw new Error('Node not ready')
+  return rpcGlobal.getBalance()
+})
+
+ipcMain.handle('wallet:getNewAddress', async () => {
+  if (!rpcGlobal) throw new Error('Node not ready')
+  return rpcGlobal.getNewAddress()
+})
+
+ipcMain.handle('wallet:send', async (_, address: string, amountSat: number, subtractFee = false) => {
+  if (!rpcGlobal) throw new Error('Node not ready')
+  const settings = loadSettings()
+  const needsApproval =
+    settings.approvalMode === 'always' ||
+    (settings.approvalMode === 'threshold' && amountSat >= settings.approvalThresholdSat)
+
+  if (needsApproval && mainWindow) {
+    const detail = subtractFee
+      ? `To: ${address}\nAmount: ${amountSat.toLocaleString()} sat (fee deducted from amount)`
+      : `To: ${address}\nAmount: ${amountSat.toLocaleString()} sat`
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: 'question',
+      buttons: ['Approve', 'Reject'],
+      defaultId: 1,
+      cancelId: 1,
+      title: 'Confirm Payment',
+      message: 'Send Bitcoin?',
+      detail
+    })
+    if (response !== 0) throw new Error('Payment rejected by user')
+  }
+
+  return rpcGlobal.sendToAddress(address, amountSat, undefined, subtractFee)
+})
+
+ipcMain.handle('wallet:listTransactions', async (_, limit = 20) => {
+  if (!rpcGlobal) throw new Error('Node not ready')
+  return rpcGlobal.listTransactions(limit)
 })
 
 // IPC — runtime

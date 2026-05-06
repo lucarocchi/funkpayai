@@ -4,14 +4,57 @@ import { join } from 'path'
 
 export type ApprovalMode = 'never' | 'threshold' | 'always'
 
+export interface ShippingInfo {
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
+  address1: string
+  address2: string
+  city: string
+  state: string
+  zip: string
+  country: string
+}
+
+export interface BillingInfo {
+  sameAsShipping: boolean
+  company: string
+  vatId: string
+  firstName: string
+  lastName: string
+  email: string
+  address1: string
+  city: string
+  zip: string
+  country: string
+}
+
 export interface Settings {
+  // Node & MCP
   rpcUrl: string
   rpcUser: string
   rpcPassword: string
-  approvalMode: ApprovalMode
-  approvalThresholdSat: number
   mcpPort: number
   pruneGB: number
+  // Payments
+  approvalMode: ApprovalMode
+  approvalThresholdSat: number
+  // Identity
+  shipping: ShippingInfo
+  billing: BillingInfo
+}
+
+const EMPTY_SHIPPING: ShippingInfo = {
+  firstName: '', lastName: '', email: '', phone: '',
+  address1: '', address2: '', city: '', state: '', zip: '', country: ''
+}
+
+const EMPTY_BILLING: BillingInfo = {
+  sameAsShipping: true,
+  company: '', vatId: '',
+  firstName: '', lastName: '', email: '',
+  address1: '', city: '', zip: '', country: ''
 }
 
 const DEFAULTS: Settings = {
@@ -21,7 +64,9 @@ const DEFAULTS: Settings = {
   approvalMode: 'threshold',
   approvalThresholdSat: 100_000,
   mcpPort: 3282,
-  pruneGB: 10
+  pruneGB: 10,
+  shipping: { ...EMPTY_SHIPPING },
+  billing: { ...EMPTY_BILLING }
 }
 
 function settingsPath(): string {
@@ -32,7 +77,13 @@ export function loadSettings(): Settings {
   const path = settingsPath()
   if (!existsSync(path)) return { ...DEFAULTS }
   try {
-    return { ...DEFAULTS, ...JSON.parse(readFileSync(path, 'utf-8')) }
+    const saved = JSON.parse(readFileSync(path, 'utf-8'))
+    return {
+      ...DEFAULTS,
+      ...saved,
+      shipping: { ...EMPTY_SHIPPING, ...saved.shipping },
+      billing:  { ...EMPTY_BILLING,  ...saved.billing  }
+    }
   } catch {
     return { ...DEFAULTS }
   }

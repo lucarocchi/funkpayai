@@ -1,86 +1,210 @@
 import { useEffect, useState } from 'react'
 
+type ApprovalMode = 'never' | 'threshold' | 'always'
+
+interface ShippingInfo {
+  firstName: string; lastName: string; email: string; phone: string
+  address1: string; address2: string; city: string; state: string
+  zip: string; country: string
+}
+
+interface BillingInfo {
+  sameAsShipping: boolean; company: string; vatId: string
+  firstName: string; lastName: string; email: string
+  address1: string; city: string; zip: string; country: string
+}
+
 interface Settings {
-  rpcUrl: string
-  rpcUser: string
-  rpcPassword: string
-  approvalMode: 'never' | 'threshold' | 'always'
-  approvalThresholdSat: number
-  mcpPort: number
-  pruneGB: number
+  rpcUrl: string; rpcUser: string; rpcPassword: string
+  mcpPort: number; pruneGB: number
+  approvalMode: ApprovalMode; approvalThresholdSat: number
+  shipping: ShippingInfo; billing: BillingInfo
 }
 
 export default function Settings(): JSX.Element {
-  const [settings, setSettings] = useState<Settings | null>(null)
+  const [s, setS] = useState<Settings | null>(null)
   const [saved, setSaved] = useState(false)
 
-  useEffect(() => {
-    window.api.settings.load().then(setSettings)
-  }, [])
+  useEffect(() => { window.api.settings.load().then(setS) }, [])
 
-  const update = (patch: Partial<Settings>): void =>
-    setSettings((s) => s ? { ...s, ...patch } : s)
+  const set = (patch: Partial<Settings>): void =>
+    setS((prev) => prev ? { ...prev, ...patch } : prev)
+
+  const setShipping = (patch: Partial<ShippingInfo>): void =>
+    setS((prev) => prev ? { ...prev, shipping: { ...prev.shipping, ...patch } } : prev)
+
+  const setBilling = (patch: Partial<BillingInfo>): void =>
+    setS((prev) => prev ? { ...prev, billing: { ...prev.billing, ...patch } } : prev)
 
   const save = async (): Promise<void> => {
-    if (!settings) return
-    await window.api.settings.save(settings)
+    if (!s) return
+    await window.api.settings.save(s)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
 
-  if (!settings) return <div style={{ color: '#64748b' }}>Loading…</div>
+  if (!s) return <div style={{ color: '#64748b' }}>Loading…</div>
 
   return (
-    <div style={{ maxWidth: 520 }}>
+    <div style={{ maxWidth: 560 }}>
       <h1 style={styles.title}>Settings</h1>
 
+      {/* PAYMENT APPROVAL */}
       <Section title="Payment Approval">
         <label style={styles.label}>Mode</label>
-        <select
-          style={styles.select}
-          value={settings.approvalMode}
-          onChange={(e) => update({ approvalMode: e.target.value as Settings['approvalMode'] })}
-        >
+        <select style={styles.select} value={s.approvalMode}
+          onChange={(e) => set({ approvalMode: e.target.value as ApprovalMode })}>
           <option value="never">Never — full autonomy</option>
           <option value="threshold">Threshold — ask above limit</option>
           <option value="always">Always ask</option>
         </select>
+        {s.approvalMode === 'threshold' && (
+          <Field label="Threshold (sat)" style={{ marginTop: 12 }}>
+            <input style={styles.input} type="number" value={s.approvalThresholdSat}
+              onChange={(e) => set({ approvalThresholdSat: Number(e.target.value) })} />
+          </Field>
+        )}
+      </Section>
 
-        {settings.approvalMode === 'threshold' && (
+      {/* SHIPPING */}
+      <Section title="Shipping Address">
+        <p style={styles.hint}>Used by the AI agent when purchasing physical goods.</p>
+        <Row>
+          <Field label="First name">
+            <input style={styles.input} value={s.shipping.firstName}
+              onChange={(e) => setShipping({ firstName: e.target.value })} />
+          </Field>
+          <Field label="Last name">
+            <input style={styles.input} value={s.shipping.lastName}
+              onChange={(e) => setShipping({ lastName: e.target.value })} />
+          </Field>
+        </Row>
+        <Row>
+          <Field label="Email">
+            <input style={styles.input} type="email" value={s.shipping.email}
+              onChange={(e) => setShipping({ email: e.target.value })} />
+          </Field>
+          <Field label="Phone">
+            <input style={styles.input} value={s.shipping.phone}
+              onChange={(e) => setShipping({ phone: e.target.value })} />
+          </Field>
+        </Row>
+        <Field label="Address" style={{ marginTop: 12 }}>
+          <input style={styles.input} placeholder="Street and number"
+            value={s.shipping.address1}
+            onChange={(e) => setShipping({ address1: e.target.value })} />
+          <input style={{ ...styles.input, marginTop: 6 }} placeholder="Apartment, suite… (optional)"
+            value={s.shipping.address2}
+            onChange={(e) => setShipping({ address2: e.target.value })} />
+        </Field>
+        <Row style={{ marginTop: 12 }}>
+          <Field label="City">
+            <input style={styles.input} value={s.shipping.city}
+              onChange={(e) => setShipping({ city: e.target.value })} />
+          </Field>
+          <Field label="State / Province">
+            <input style={styles.input} value={s.shipping.state}
+              onChange={(e) => setShipping({ state: e.target.value })} />
+          </Field>
+        </Row>
+        <Row>
+          <Field label="ZIP / Postal code">
+            <input style={styles.input} value={s.shipping.zip}
+              onChange={(e) => setShipping({ zip: e.target.value })} />
+          </Field>
+          <Field label="Country">
+            <input style={styles.input} value={s.shipping.country}
+              onChange={(e) => setShipping({ country: e.target.value })} />
+          </Field>
+        </Row>
+      </Section>
+
+      {/* BILLING */}
+      <Section title="Billing">
+        <label style={styles.checkRow}>
+          <input type="checkbox" checked={s.billing.sameAsShipping}
+            onChange={(e) => setBilling({ sameAsShipping: e.target.checked })} />
+          <span style={{ marginLeft: 8, color: '#94a3b8', fontSize: 14 }}>Same as shipping address</span>
+        </label>
+
+        <Row style={{ marginTop: 16 }}>
+          <Field label="Company (optional)">
+            <input style={styles.input} value={s.billing.company}
+              onChange={(e) => setBilling({ company: e.target.value })} />
+          </Field>
+          <Field label="VAT / Tax ID (optional)">
+            <input style={styles.input} value={s.billing.vatId}
+              onChange={(e) => setBilling({ vatId: e.target.value })} />
+          </Field>
+        </Row>
+
+        {!s.billing.sameAsShipping && (
           <>
-            <label style={{ ...styles.label, marginTop: 12 }}>Threshold (sat)</label>
-            <input
-              style={styles.input}
-              type="number"
-              value={settings.approvalThresholdSat}
-              onChange={(e) => update({ approvalThresholdSat: Number(e.target.value) })}
-            />
+            <Row>
+              <Field label="First name">
+                <input style={styles.input} value={s.billing.firstName}
+                  onChange={(e) => setBilling({ firstName: e.target.value })} />
+              </Field>
+              <Field label="Last name">
+                <input style={styles.input} value={s.billing.lastName}
+                  onChange={(e) => setBilling({ lastName: e.target.value })} />
+              </Field>
+            </Row>
+            <Field label="Email">
+              <input style={styles.input} type="email" value={s.billing.email}
+                onChange={(e) => setBilling({ email: e.target.value })} />
+            </Field>
+            <Field label="Address" style={{ marginTop: 12 }}>
+              <input style={styles.input} value={s.billing.address1}
+                onChange={(e) => setBilling({ address1: e.target.value })} />
+            </Field>
+            <Row>
+              <Field label="City">
+                <input style={styles.input} value={s.billing.city}
+                  onChange={(e) => setBilling({ city: e.target.value })} />
+              </Field>
+              <Field label="ZIP">
+                <input style={styles.input} value={s.billing.zip}
+                  onChange={(e) => setBilling({ zip: e.target.value })} />
+              </Field>
+              <Field label="Country">
+                <input style={styles.input} value={s.billing.country}
+                  onChange={(e) => setBilling({ country: e.target.value })} />
+              </Field>
+            </Row>
           </>
         )}
       </Section>
 
+      {/* NODE & MCP */}
       <Section title="Bitcoin Node (RPC)">
-        <label style={styles.label}>RPC URL</label>
-        <input style={styles.input} value={settings.rpcUrl}
-          onChange={(e) => update({ rpcUrl: e.target.value })} />
-
-        <label style={{ ...styles.label, marginTop: 12 }}>User</label>
-        <input style={styles.input} value={settings.rpcUser}
-          onChange={(e) => update({ rpcUser: e.target.value })} />
-
-        <label style={{ ...styles.label, marginTop: 12 }}>Password</label>
-        <input style={styles.input} type="password" value={settings.rpcPassword}
-          onChange={(e) => update({ rpcPassword: e.target.value })} />
+        <Field label="RPC URL">
+          <input style={styles.input} value={s.rpcUrl}
+            onChange={(e) => set({ rpcUrl: e.target.value })} />
+        </Field>
+        <Row style={{ marginTop: 12 }}>
+          <Field label="User">
+            <input style={styles.input} value={s.rpcUser}
+              onChange={(e) => set({ rpcUser: e.target.value })} />
+          </Field>
+          <Field label="Password">
+            <input style={styles.input} type="password" value={s.rpcPassword}
+              onChange={(e) => set({ rpcPassword: e.target.value })} />
+          </Field>
+        </Row>
       </Section>
 
       <Section title="Advanced">
-        <label style={styles.label}>MCP Port</label>
-        <input style={styles.input} type="number" value={settings.mcpPort}
-          onChange={(e) => update({ mcpPort: Number(e.target.value) })} />
-
-        <label style={{ ...styles.label, marginTop: 12 }}>Prune size (GB)</label>
-        <input style={styles.input} type="number" value={settings.pruneGB}
-          onChange={(e) => update({ pruneGB: Number(e.target.value) })} />
+        <Row>
+          <Field label="MCP Port">
+            <input style={styles.input} type="number" value={s.mcpPort}
+              onChange={(e) => set({ mcpPort: Number(e.target.value) })} />
+          </Field>
+          <Field label="Prune size (GB)">
+            <input style={styles.input} type="number" value={s.pruneGB}
+              onChange={(e) => set({ pruneGB: Number(e.target.value) })} />
+          </Field>
+        </Row>
       </Section>
 
       <button style={styles.btn} onClick={save}>
@@ -99,30 +223,35 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
+function Row({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }): JSX.Element {
+  return <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Array.isArray(children) ? children.filter(Boolean).length : 1}, 1fr)`, gap: 12, ...style }}>{children}</div>
+}
+
+function Field({ label, children, style }: { label: string; children: React.ReactNode; style?: React.CSSProperties }): JSX.Element {
+  return (
+    <div style={style}>
+      <label style={styles.label}>{label}</label>
+      {children}
+    </div>
+  )
+}
+
 const styles: Record<string, React.CSSProperties> = {
   title: { fontSize: 20, fontWeight: 600, marginBottom: 24 },
-  section: {
-    background: '#1a1d27',
-    border: '1px solid #2d3048',
-    borderRadius: 8,
-    padding: 20,
-    marginBottom: 16
-  },
-  sectionTitle: { fontSize: 12, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16 },
-  label: { display: 'block', fontSize: 13, color: '#94a3b8', marginBottom: 6 },
+  section: { background: '#1a1d27', border: '1px solid #2d3048', borderRadius: 8, padding: 20, marginBottom: 16 },
+  sectionTitle: { fontSize: 11, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 16 },
+  label: { display: 'block', fontSize: 12, color: '#64748b', marginBottom: 5 },
+  hint: { fontSize: 12, color: '#475569', marginBottom: 14, marginTop: -4 },
   input: {
-    display: 'block', width: '100%', padding: '8px 12px',
+    display: 'block', width: '100%', padding: '7px 10px',
     background: '#0f1117', border: '1px solid #2d3048', borderRadius: 6,
-    color: '#e2e8f0', fontSize: 14, outline: 'none'
+    color: '#e2e8f0', fontSize: 13, outline: 'none'
   },
   select: {
-    display: 'block', width: '100%', padding: '8px 12px',
+    display: 'block', width: '100%', padding: '7px 10px',
     background: '#0f1117', border: '1px solid #2d3048', borderRadius: 6,
-    color: '#e2e8f0', fontSize: 14, outline: 'none'
+    color: '#e2e8f0', fontSize: 13, outline: 'none'
   },
-  btn: {
-    marginTop: 8, padding: '10px 24px',
-    background: '#f7931a', border: 'none', borderRadius: 6,
-    color: '#000', fontWeight: 600, fontSize: 14, cursor: 'pointer'
-  }
+  checkRow: { display: 'flex', alignItems: 'center', cursor: 'pointer' },
+  btn: { marginTop: 8, padding: '10px 24px', background: '#f7931a', border: 'none', borderRadius: 6, color: '#000', fontWeight: 700, fontSize: 14, cursor: 'pointer' }
 }

@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react'
 import Dashboard from './pages/Dashboard'
 import Settings from './pages/Settings'
+import Wallet from './pages/Wallet'
 import Install from './pages/Install'
 import logo from './assets/logo.png'
 
-type Page = 'dashboard' | 'settings'
+type Page = 'dashboard' | 'wallet' | 'settings'
 type AppState = 'loading' | 'not_installed' | 'in_progress' | 'ready'
 
 const nav: { id: Page; label: string }[] = [
   { id: 'dashboard', label: 'Dashboard' },
+  { id: 'wallet', label: 'Wallet' },
   { id: 'settings', label: 'Settings' }
 ]
 
@@ -57,6 +59,7 @@ export default function App(): JSX.Element {
       </aside>
       <main style={styles.main}>
         {page === 'dashboard' && <Dashboard />}
+        {page === 'wallet' && <Wallet />}
         {page === 'settings' && <Settings />}
       </main>
     </div>

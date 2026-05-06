@@ -3,6 +3,8 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { IncomingMessage, ServerResponse, createServer } from 'http'
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import https from 'https'
+import http from 'http'
 
 const execAsync = promisify(exec)
 
@@ -109,6 +111,73 @@ export class McpServerManager {
       }
     )
 
+    s.tool(
+      'create_invoice',
+      'Create a FunkPay payment invoice on a merchant server. Automatically attaches user shipping/billing info from Settings. Returns address, bip21_uri and payment_id for tracking.',
+      {
+        merchant_url: z.string().describe('Base URL of the btcfunkpay merchant server, e.g. https://btcfunk.com/pay'),
+        amount_sat: z.number().int().positive().optional().describe('Amount in satoshis (omit for open amount)'),
+        label: z.string().optional().describe('Order reference or description')
+      },
+      async ({ merchant_url, amount_sat, label }) => {
+        const settings = loadSettings()
+        const base = merchant_url.replace(/\/$/, '')
+        const body: Record<string, unknown> = {}
+        if (amount_sat) body.amount_sat = amount_sat
+        if (label) body.label = label
+
+        const { shipping, billing } = settings
+        const hasShipping = shipping && shipping.address1
+        if (hasShipping) body.shipping = shipping
+        const hasBilling = billing && (billing.sameAsShipping ? hasShipping : billing.address1)
+        if (hasBilling) body.billing = billing
+
+        try {
+          const data = await httpPost(`${base}/invoices`, body)
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(
+                  {
+                    payment_id: data.payment_id,
+                    address: data.address,
+                    bip21_uri: data.bip21_uri,
+                    amount_sat: data.amount_sat,
+                    expires_at: data.expires_at
+                  },
+                  null,
+                  2
+                )
+              }
+            ]
+          }
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e)
+          return { content: [{ type: 'text', text: `Invoice creation failed: ${msg}` }], isError: true }
+        }
+      }
+    )
+
+    s.tool(
+      'get_invoice_status',
+      'Poll the status of a FunkPay payment invoice',
+      {
+        merchant_url: z.string().describe('Base URL of the btcfunkpay merchant server'),
+        payment_id: z.string().describe('payment_id returned by create_invoice')
+      },
+      async ({ merchant_url, payment_id }) => {
+        const base = merchant_url.replace(/\/$/, '')
+        try {
+          const data = await httpGet(`${base}/invoices/${payment_id}`)
+          return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] }
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e)
+          return { content: [{ type: 'text', text: `Status check failed: ${msg}` }], isError: true }
+        }
+      }
+    )
+
     return s
   }
 
@@ -155,3 +224,44 @@ async function bodyOf(req: IncomingMessage): Promise<Buffer> {
     req.on('error', reject)
   })
 }
+
+function httpRequest(method: 'GET' | 'POST', url: string, body?: unknown): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url)
+    const payload = body ? JSON.stringify(body) : undefined
+    const opts = {
+      hostname: parsed.hostname,
+      port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+      path: parsed.pathname + parsed.search,
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'funkpayai/1.0',
+        ...(payload ? { 'Content-Length': Buffer.byteLength(payload) } : {})
+      }
+    }
+    const transport = parsed.protocol === 'https:' ? https : http
+    const req = transport.request(opts, (res) => {
+      const chunks: Buffer[] = []
+      res.on('data', (c) => chunks.push(c))
+      res.on('end', () => {
+        const text = Buffer.concat(chunks).toString()
+        if (res.statusCode && res.statusCode >= 400) {
+          reject(new Error(`HTTP ${res.statusCode}: ${text}`))
+        } else {
+          try { resolve(JSON.parse(text)) } catch { resolve(text) }
+        }
+      })
+    })
+    req.on('error', reject)
+    req.setTimeout(15000, () => { req.destroy(); reject(new Error('Request timeout')) })
+    if (payload) req.write(payload)
+    req.end()
+  })
+}
+
+const httpPost = (url: string, body: unknown): Promise<Record<string, unknown>> =>
+  httpRequest('POST', url, body) as Promise<Record<string, unknown>>
+
+const httpGet = (url: string): Promise<Record<string, unknown>> =>
+  httpRequest('GET', url) as Promise<Record<string, unknown>>

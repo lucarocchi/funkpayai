@@ -13,6 +13,12 @@ interface Window {
       load: () => Promise<import('../main/settings').Settings>
       save: (s: import('../main/settings').Settings) => Promise<void>
     }
+    wallet: {
+      getBalance:       () => Promise<number>
+      getNewAddress:    () => Promise<string>
+      send:             (address: string, amountSat: number, subtractFee?: boolean) => Promise<string>
+      listTransactions: (limit?: number) => Promise<unknown[]>
+    }
     status: () => Promise<{ bitcoind: boolean; mcp: boolean; mcpPort: number }>
   }
 }
