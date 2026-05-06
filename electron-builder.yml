@@ -11,6 +11,11 @@ files:
 
 mac:
   category: public.app-category.finance
+  identity: "Developer ID Application: Luca Rocchi (CXK587548Z)"
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
   target:
     - target: dmg
     - target: zip
