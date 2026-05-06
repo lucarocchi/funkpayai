@@ -99,22 +99,13 @@ export default function Settings(): JSX.Element {
 
         <div style={{ marginTop: 20, borderTop: '1px solid #2d3048', paddingTop: 16 }}>
           <label style={styles.label}>Release agent after payment</label>
-          <select style={styles.select} value={s.confirmationsRequired === 0 ? 'detected' : 'confirmed'}
-            onChange={(e) => set({ confirmationsRequired: e.target.value === 'detected' ? 0 : (s.confirmationsRequired || 1) })}>
-            <option value="detected">Detected — tx seen in mempool (fast, unconfirmed)</option>
-            <option value="confirmed">Confirmed — wait N confirmations (safer)</option>
+          <select style={styles.select} value={s.confirmationsRequired}
+            onChange={(e) => set({ confirmationsRequired: Number(e.target.value) })}>
+            <option value={0}>Detected — tx in mempool (~instant, unconfirmed)</option>
+            <option value={1}>1 confirmation — ~10 min</option>
+            <option value={3}>3 confirmations — ~30 min</option>
+            <option value={6}>6 confirmations — ~60 min (recommended for large amounts)</option>
           </select>
-          {s.confirmationsRequired > 0 && (
-            <Field label="Confirmations required" style={{ marginTop: 12 }}>
-              <input style={styles.input} type="number" min={1} max={6} value={s.confirmationsRequired}
-                onChange={(e) => set({ confirmationsRequired: Math.max(1, Number(e.target.value)) })} />
-              <div style={{ fontSize: 11, color: '#475569', marginTop: 4 }}>
-                {s.confirmationsRequired === 1 ? '~10 min' :
-                 s.confirmationsRequired <= 3 ? `~${s.confirmationsRequired * 10} min` :
-                 `~${s.confirmationsRequired * 10} min · recommended for large amounts`}
-              </div>
-            </Field>
-          )}
         </div>
       </Section>
 
