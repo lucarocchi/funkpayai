@@ -22,5 +22,8 @@ contextBridge.exposeInMainWorld('api', {
     list:     () => ipcRenderer.invoke('payments:list'),
     reverify: (id: string) => ipcRenderer.invoke('payments:reverify', id)
   },
-  status: () => ipcRenderer.invoke('status')
+  status: () => ipcRenderer.invoke('status'),
+  app: {
+    relaunch: () => ipcRenderer.invoke('app:relaunch')
+  }
 })

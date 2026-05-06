@@ -273,6 +273,7 @@ ipcMain.handle('payments:reverify', async (_, id: string) => {
 // IPC — runtime
 ipcMain.handle('settings:load', () => loadSettings())
 ipcMain.handle('settings:save', (_, settings: Settings) => saveSettings(settings))
+ipcMain.handle('app:relaunch', () => { app.relaunch(); app.exit(0) })
 ipcMain.handle('status', async () => {
   const settings = loadSettings()
   let bitcoindRunning = false

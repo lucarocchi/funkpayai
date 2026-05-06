@@ -24,5 +24,8 @@ interface Window {
       reverify: (id: string) => Promise<Record<string, unknown>>
     }
     status: () => Promise<{ bitcoind: boolean; mcp: boolean; mcpPort: number }>
+    app: {
+      relaunch: () => Promise<void>
+    }
   }
 }

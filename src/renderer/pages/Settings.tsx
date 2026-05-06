@@ -30,8 +30,14 @@ interface Settings {
 export default function Settings(): JSX.Element {
   const [s, setS] = useState<Settings | null>(null)
   const [saved, setSaved] = useState(false)
+  const [initialNetwork, setInitialNetwork] = useState<string>('mainnet')
 
-  useEffect(() => { window.api.settings.load().then(setS) }, [])
+  useEffect(() => {
+    window.api.settings.load().then((loaded) => {
+      setS(loaded)
+      setInitialNetwork(loaded.network ?? 'mainnet')
+    })
+  }, [])
 
   const set = (patch: Partial<Settings>): void =>
     setS((prev) => prev ? { ...prev, ...patch } : prev)
@@ -45,9 +51,13 @@ export default function Settings(): JSX.Element {
   const save = async (): Promise<void> => {
     if (!s) return
     await window.api.settings.save(s)
+    window.dispatchEvent(new CustomEvent('settings-saved', { detail: s }))
+    if ((s.network ?? 'mainnet') !== initialNetwork) {
+      await window.api.app.relaunch()
+      return
+    }
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
-    window.dispatchEvent(new CustomEvent('settings-saved', { detail: s }))
   }
 
   if (!s) return <div style={{ color: '#64748b' }}>Loading…</div>

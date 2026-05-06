@@ -39,7 +39,8 @@
       "Bash(dig funkpay.dev +short)",
       "Bash(dig shop.funkpay.dev +short)",
       "Bash(curl -s https://shop.funkpay.dev/.well-known/funkpay.json)",
-      "Bash(curl -s https://funkpay.dev/)"
+      "Bash(curl -s https://funkpay.dev/)",
+      "Bash(curl -s https://shop.funkpay.dev/)"
     ]
   }
 }
