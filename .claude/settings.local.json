@@ -34,7 +34,12 @@
       "Bash(sips -Z 200 /Users/lucarocchi/Projects/funkpayai/src/renderer/assets/logo.png --out /Users/lucarocchi/Projects/funkpayai/src/renderer/assets/logo-splash.png)",
       "Bash(python3 *)",
       "Bash(git checkout *)",
-      "Bash(npm list *)"
+      "Bash(npm list *)",
+      "Bash(ssh *)",
+      "Bash(dig funkpay.dev +short)",
+      "Bash(dig shop.funkpay.dev +short)",
+      "Bash(curl -s https://shop.funkpay.dev/.well-known/funkpay.json)",
+      "Bash(curl -s https://funkpay.dev/)"
     ]
   }
 }

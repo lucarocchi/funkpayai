@@ -19,6 +19,7 @@ const nav: { id: Page; label: string }[] = [
 export default function App(): JSX.Element {
   const [appState, setAppState] = useState<AppState>('loading')
   const [page, setPage] = useState<Page>('dashboard')
+  const [network, setNetwork] = useState<'mainnet' | 'testnet'>('mainnet')
 
   useEffect(() => {
     window.api.install.getStatus().then((s) => {
@@ -26,6 +27,10 @@ export default function App(): JSX.Element {
       if (s === 'installed') setAppState('ready')
       else setAppState(s)
     })
+    window.api.settings.load().then((s) => setNetwork(s.network ?? 'mainnet'))
+    const onSave = (e: Event): void => setNetwork((e as CustomEvent).detail?.network ?? 'mainnet')
+    window.addEventListener('settings-saved', onSave)
+    return () => window.removeEventListener('settings-saved', onSave)
   }, [])
 
   if (appState === 'loading') {
@@ -46,7 +51,9 @@ export default function App(): JSX.Element {
       <aside style={styles.sidebar}>
         <div style={styles.logo}>
           <img src={logo} alt="FunkPay" style={{ width: '100%', height: 'auto' }} />
-          <div style={styles.mcpLabel}>MCP</div>
+          <div style={network === 'testnet' ? styles.testnetBadge : styles.mainnetBadge}>
+            {network === 'testnet' ? 'TESTNET' : 'MAINNET'}
+          </div>
         </div>
         <nav>
           {nav.map((n) => (
@@ -80,7 +87,8 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '24px 0'
   },
   logo: { padding: '0 16px 20px', textAlign: 'center' as const },
-  mcpLabel: { fontSize: 11, fontWeight: 700, letterSpacing: '0.2em', color: '#f7931a', marginTop: 4 },
+  mainnetBadge: { marginTop: 8, display: 'inline-block', fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', color: '#f7931a', background: '#f7931a18', border: '1px solid #f7931a44', borderRadius: 4, padding: '2px 8px' },
+  testnetBadge: { marginTop: 8, display: 'inline-block', fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', color: '#eab308', background: '#eab30818', border: '1px solid #eab30844', borderRadius: 4, padding: '2px 8px' },
   navBtn: {
     display: 'block', width: '100%', textAlign: 'left',
     padding: '10px 20px', background: 'none', border: 'none',

@@ -36,6 +36,8 @@ export interface Merchant {
 }
 
 export interface Settings {
+  // Network
+  network: 'mainnet' | 'testnet'
   // Node & MCP
   rpcUrl: string
   rpcUser: string
@@ -67,6 +69,7 @@ const EMPTY_BILLING: BillingInfo = {
 }
 
 const DEFAULTS: Settings = {
+  network: 'mainnet',
   rpcUrl: 'http://127.0.0.1:8332',
   rpcUser: 'luca',
   rpcPassword: 'funkpay123',

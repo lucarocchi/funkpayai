@@ -18,6 +18,7 @@ interface BillingInfo {
 }
 
 interface Settings {
+  network: 'mainnet' | 'testnet'
   rpcUrl: string; rpcUser: string; rpcPassword: string
   mcpPort: number; pruneGB: number
   approvalMode: ApprovalMode; approvalThresholdSat: number
@@ -46,6 +47,7 @@ export default function Settings(): JSX.Element {
     await window.api.settings.save(s)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+    window.dispatchEvent(new CustomEvent('settings-saved', { detail: s }))
   }
 
   if (!s) return <div style={{ color: '#64748b' }}>Loading…</div>
@@ -53,6 +55,21 @@ export default function Settings(): JSX.Element {
   return (
     <div style={{ maxWidth: 560 }}>
       <h1 style={styles.title}>Settings</h1>
+
+      {/* NETWORK */}
+      <Section title="Network">
+        <label style={styles.label}>Bitcoin network</label>
+        <select style={styles.select} value={s.network ?? 'mainnet'}
+          onChange={(e) => set({ network: e.target.value as 'mainnet' | 'testnet' })}>
+          <option value="mainnet">Mainnet — real BTC</option>
+          <option value="testnet">Testnet — test BTC, no value</option>
+        </select>
+        {(s.network ?? 'mainnet') === 'testnet' && (
+          <div style={{ marginTop: 8, fontSize: 12, color: '#eab308' }}>
+            ⚠ Testnet mode — transactions have no real value
+          </div>
+        )}
+      </Section>
 
       {/* PAYMENT APPROVAL */}
       <Section title="Payment Approval">
