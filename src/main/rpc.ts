@@ -23,12 +23,14 @@ export class BitcoinRpc {
       body: JSON.stringify({ jsonrpc: '1.0', id, method, params })
     })
 
-    if (!res.ok) {
-      const text = await res.text()
+    const text = await res.text()
+    let json: { result: T; error: { code: number; message: string } | null }
+    try {
+      json = JSON.parse(text)
+    } catch {
       throw new Error(`RPC HTTP ${res.status}: ${text}`)
     }
 
-    const json = (await res.json()) as { result: T; error: { code: number; message: string } | null }
     if (json.error) {
       const err = new Error(`RPC error: ${json.error.message}`) as Error & { code: number }
       err.code = json.error.code

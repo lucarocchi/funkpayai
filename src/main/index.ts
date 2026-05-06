@@ -83,14 +83,15 @@ export async function startServices(): Promise<void> {
   bitcoind.start()
 
   // Wait for node to be ready, then setup wallet
+  // bitcoind on mainnet can take several minutes on first start (header sync)
   const setupWallet = async (): Promise<BitcoinRpc> => {
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 90; i++) {
       try {
         await baseRpc.ping()
         await baseRpc.ensureWallet('funkpay')
         return baseRpc.withWallet('funkpay')
       } catch {
-        await new Promise((r) => setTimeout(r, 2000))
+        await new Promise((r) => setTimeout(r, 3000))
       }
     }
     throw new Error('bitcoind did not start in time')
@@ -148,8 +149,9 @@ ipcMain.handle('install:openTerminal', async () => {
       if (line === '__DONE__') {
         logUnwatch?.()
         logUnwatch = null
-        await startServices()
-        mainWindow?.webContents.send('install:done')
+        startServices()
+          .then(() => mainWindow?.webContents.send('install:done'))
+          .catch((e) => console.error('[startup] startServices failed:', e))
       } else {
         mainWindow?.webContents.send('install:log', line)
       }
@@ -225,15 +227,16 @@ app.whenReady().then(async () => {
   const status = installer.getStatus()
 
   if (status === 'installed') {
-    await startServices()
+    startServices().catch((e) => console.error('[startup] startServices failed:', e))
   } else if (status === 'in_progress') {
     // resume watching — install was in progress when app was closed
     logUnwatch = installer.watchLog(async (line) => {
       if (line === '__DONE__') {
         logUnwatch?.()
         logUnwatch = null
-        await startServices()
-        mainWindow?.webContents.send('install:done')
+        startServices()
+          .then(() => mainWindow?.webContents.send('install:done'))
+          .catch((e) => console.error('[startup] startServices failed:', e))
       } else {
         mainWindow?.webContents.send('install:log', line)
       }
