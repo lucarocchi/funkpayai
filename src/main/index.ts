@@ -101,44 +101,8 @@ export async function startServices(): Promise<void> {
   )
   bitcoind.start()
 
-  // Wait for node to be ready, then setup wallet
-  // bitcoind on mainnet can take several minutes on first start (header sync)
-  const setupWallet = async (): Promise<BitcoinRpc> => {
-    for (let i = 0; i < 90; i++) {
-      try {
-        await baseRpc.ping()
-        await baseRpc.ensureWallet('funkpay')
-        return baseRpc.withWallet('funkpay')
-      } catch {
-        await new Promise((r) => setTimeout(r, 3000))
-      }
-    }
-    throw new Error('bitcoind did not start in time')
-  }
-
-  const rpc = await setupWallet()
-  rpcGlobal = rpc
-
-  // backup when bitcoind fires walletnotify (new tx on this wallet)
-  // truncate any stale notify file from a previous run
-  writeFileSync(bitcoind.notifyFile, '')
-  let backupDebounce: ReturnType<typeof setTimeout> | null = null
-  watch(bitcoind.notifyFile, () => {
-    // fs.watch fires multiple times per write on macOS — debounce 500ms
-    if (backupDebounce) clearTimeout(backupDebounce)
-    backupDebounce = setTimeout(async () => {
-      try {
-        const content = readFileSync(bitcoind.notifyFile, 'utf-8').trim()
-        if (!content) return
-        const txid = content.split('\n').pop()?.trim()
-        if (!txid) return
-        const tx = await rpc.getTransaction(txid).catch(() => null)
-        if (tx && tx.amount > 0) await backupWallet(rpc)
-      } catch { /* ignore */ }
-    }, 500)
-  })
-
-  mcp = new McpServerManager(rpc, async (address, amountSat) => {
+  // MCP starts immediately — wallet connects in background when node is ready
+  mcp = new McpServerManager(null, async (address, amountSat) => {
     const result = await dialog.showMessageBox(mainWindow!, {
       type: 'question',
       buttons: ['Approve', 'Reject'],
@@ -150,8 +114,40 @@ export async function startServices(): Promise<void> {
     })
     return result.response === 0
   })
-
   await mcp.start(settings.mcpPort)
+
+  // Connect wallet in background — node may take minutes on first sync
+  const connectWallet = async (): Promise<void> => {
+    for (let i = 0; i < 90; i++) {
+      try {
+        await baseRpc.ping()
+        await baseRpc.ensureWallet('funkpay')
+        const rpc = baseRpc.withWallet('funkpay')
+        rpcGlobal = rpc
+        mcp.setRpc(rpc)
+
+        writeFileSync(bitcoind!.notifyFile, '')
+        let backupDebounce: ReturnType<typeof setTimeout> | null = null
+        watch(bitcoind!.notifyFile, () => {
+          if (backupDebounce) clearTimeout(backupDebounce)
+          backupDebounce = setTimeout(async () => {
+            try {
+              const content = readFileSync(bitcoind!.notifyFile, 'utf-8').trim()
+              if (!content) return
+              const txid = content.split('\n').pop()?.trim()
+              if (!txid) return
+              const tx = await rpc.getTransaction(txid).catch(() => null)
+              if (tx && tx.amount > 0) await backupWallet(rpc)
+            } catch { /* ignore */ }
+          }, 500)
+        })
+        return
+      } catch {
+        await new Promise((r) => setTimeout(r, 3000))
+      }
+    }
+  }
+  connectWallet().catch(console.error)
 }
 
 // IPC — install

@@ -32,20 +32,29 @@ type ApprovalHandler = (address: string, amountSat: number) => Promise<boolean>
 export class McpServerManager {
   private server: McpServer
   private httpServer: ReturnType<typeof createServer> | null = null
-  private rpc: BitcoinRpc
+  private rpc: BitcoinRpc | null
   private onApprovalRequired: ApprovalHandler
 
-  constructor(rpc: BitcoinRpc, onApprovalRequired: ApprovalHandler) {
+  constructor(rpc: BitcoinRpc | null, onApprovalRequired: ApprovalHandler) {
     this.rpc = rpc
     this.onApprovalRequired = onApprovalRequired
     this.server = this.buildServer()
+  }
+
+  setRpc(rpc: BitcoinRpc): void {
+    this.rpc = rpc
+  }
+
+  private get rpcOrThrow(): BitcoinRpc {
+    if (!this.rpc) throw new Error('Bitcoin node not ready yet — please wait')
+    return this.rpc
   }
 
   private buildServer(): McpServer {
     const s = new McpServer({ name: 'funkpayai', version: '0.1.0' })
 
     s.tool('get_balance', 'Get wallet balance in satoshis', {}, async () => {
-      const sat = await this.rpc.getBalance()
+      const sat = await this.rpcOrThrow.getBalance()
       return { content: [{ type: 'text', text: `${sat} sat` }] }
     })
 
@@ -54,7 +63,7 @@ export class McpServerManager {
       'Generate a new Bitcoin receive address',
       { label: z.string().optional() },
       async ({ label }) => {
-        const address = await this.rpc.getNewAddress(label)
+        const address = await this.rpcOrThrow.getNewAddress(label)
         return { content: [{ type: 'text', text: address }] }
       }
     )
@@ -80,7 +89,7 @@ export class McpServerManager {
           }
         }
 
-        const txid = await this.rpc.sendToAddress(address, amount_sat, comment)
+        const txid = await this.rpcOrThrow.sendToAddress(address, amount_sat, comment)
         // update ledger record if we have one for this address
         const ledger = getLedger()
         const existing = ledger.list().find((r) => r.address === address && !r.txid)
@@ -94,7 +103,7 @@ export class McpServerManager {
       'Get transaction status and confirmations',
       { txid: z.string() },
       async ({ txid }) => {
-        const tx = await this.rpc.getTransaction(txid)
+        const tx = await this.rpcOrThrow.getTransaction(txid)
         return {
           content: [
             {
@@ -111,7 +120,7 @@ export class McpServerManager {
       'List recent wallet transactions',
       { limit: z.number().int().min(1).max(100).default(20) },
       async ({ limit }) => {
-        const txs = await this.rpc.listTransactions(limit)
+        const txs = await this.rpcOrThrow.listTransactions(limit)
         return { content: [{ type: 'text', text: JSON.stringify(txs, null, 2) }] }
       }
     )
@@ -251,7 +260,7 @@ export class McpServerManager {
         let onChainInfo = ''
         if (record?.txid) {
           try {
-            const tx = await this.rpc.getTransaction(record.txid)
+            const tx = await this.rpcOrThrow.getTransaction(record.txid)
             onChainInfo = ` On-chain: ${tx.confirmations} confirmations.`
             if (record) ledger.update(record.id, { on_chain_confs: tx.confirmations, needs_attention: tx.confirmations > 0 })
           } catch { /* ignore */ }
