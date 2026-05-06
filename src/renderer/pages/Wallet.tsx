@@ -179,7 +179,7 @@ function Send({ onSent, balanceSat }: { onSent: () => void; balanceSat: number }
   }
 
   const send = async (): Promise<void> => {
-    const amt = parseInt(amountSat, 10)
+    const amt = Math.floor(Number(amountSat))
     if (!address.trim() || !amt || amt < 1000) {
       setErr('Enter a valid address and amount (min 1000 sat)')
       return

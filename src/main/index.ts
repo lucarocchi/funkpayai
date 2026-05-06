@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
-import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, watch, readFileSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readdirSync, rmSync, watch, readFileSync, writeFileSync } from 'fs'
 import { is } from '@electron-toolkit/utils'
 import { BitcoindInstaller } from './installer'
 import { BitcoindManager } from './bitcoind'
@@ -20,14 +20,10 @@ let logUnwatch: (() => void) | null = null
 
 const MAX_BACKUPS = 30
 
-function backupWallet(): void {
-  const src = join(app.getPath('userData'), 'bitcoin', 'wallets', 'funkpay', 'wallet.dat')
-  if (!existsSync(src)) return
-
+async function backupWallet(rpc: BitcoinRpc): Promise<void> {
   const backupDir = join(app.getPath('userData'), 'wallet-backups')
   mkdirSync(backupDir, { recursive: true })
 
-  // find next index
   const existing = readdirSync(backupDir)
     .filter((f) => /^wallet-\d+\.dat$/.test(f))
     .map((f) => parseInt(f.replace('wallet-', '').replace('.dat', ''), 10))
@@ -35,7 +31,9 @@ function backupWallet(): void {
 
   const next = existing.length ? existing[existing.length - 1] + 1 : 1
   const dest = join(backupDir, `wallet-${String(next).padStart(3, '0')}.dat`)
-  copyFileSync(src, dest)
+
+  // backupwallet flushes WAL and copies atomically — safe while node is running
+  await rpc.call('backupwallet', [dest])
 
   // prune oldest beyond MAX_BACKUPS
   if (existing.length >= MAX_BACKUPS) {
@@ -104,16 +102,20 @@ export async function startServices(): Promise<void> {
   // backup when bitcoind fires walletnotify (new tx on this wallet)
   // truncate any stale notify file from a previous run
   writeFileSync(bitcoind.notifyFile, '')
-  watch(bitcoind.notifyFile, async () => {
-    try {
-      const content = readFileSync(bitcoind.notifyFile, 'utf-8').trim()
-      if (!content) return
-      const txid = content.split('\n').pop()?.trim()
-      if (!txid) return
-      // only backup for incoming transactions
-      const tx = await rpc.getTransaction(txid).catch(() => null)
-      if (tx && tx.amount > 0) backupWallet()
-    } catch { /* ignore */ }
+  let backupDebounce: ReturnType<typeof setTimeout> | null = null
+  watch(bitcoind.notifyFile, () => {
+    // fs.watch fires multiple times per write on macOS — debounce 500ms
+    if (backupDebounce) clearTimeout(backupDebounce)
+    backupDebounce = setTimeout(async () => {
+      try {
+        const content = readFileSync(bitcoind.notifyFile, 'utf-8').trim()
+        if (!content) return
+        const txid = content.split('\n').pop()?.trim()
+        if (!txid) return
+        const tx = await rpc.getTransaction(txid).catch(() => null)
+        if (tx && tx.amount > 0) await backupWallet(rpc)
+      } catch { /* ignore */ }
+    }, 500)
   })
 
   mcp = new McpServerManager(rpc, async (address, amountSat) => {
