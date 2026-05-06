@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
-import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync } from 'fs'
+import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, watch, readFileSync, writeFileSync } from 'fs'
 import { is } from '@electron-toolkit/utils'
 import { BitcoindInstaller } from './installer'
 import { BitcoindManager } from './bitcoind'
@@ -100,7 +100,21 @@ export async function startServices(): Promise<void> {
 
   const rpc = await setupWallet()
   rpcGlobal = rpc
-  backupWallet()
+
+  // backup when bitcoind fires walletnotify (new tx on this wallet)
+  // truncate any stale notify file from a previous run
+  writeFileSync(bitcoind.notifyFile, '')
+  watch(bitcoind.notifyFile, async () => {
+    try {
+      const content = readFileSync(bitcoind.notifyFile, 'utf-8').trim()
+      if (!content) return
+      const txid = content.split('\n').pop()?.trim()
+      if (!txid) return
+      // only backup for incoming transactions
+      const tx = await rpc.getTransaction(txid).catch(() => null)
+      if (tx && tx.amount > 0) backupWallet()
+    } catch { /* ignore */ }
+  })
 
   mcp = new McpServerManager(rpc, async (address, amountSat) => {
     const result = await dialog.showMessageBox(mainWindow!, {

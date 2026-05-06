@@ -7,6 +7,7 @@ export class BitcoindManager {
   private process: ChildProcess | null = null
   private dataDir: string
   private binaryPath: string
+  readonly notifyFile: string
 
   private onLog: (line: string) => void
 
@@ -14,12 +15,17 @@ export class BitcoindManager {
     this.binaryPath = binaryPath
     this.onLog = onLog ?? console.log
     this.dataDir = join(app.getPath('userData'), 'bitcoin')
+    this.notifyFile = join(app.getPath('userData'), 'wallet-notify.txt')
     mkdirSync(this.dataDir, { recursive: true })
     this.writeConfig(pruneGB, rpcUser, rpcPassword)
   }
 
   private writeConfig(pruneGB: number, rpcUser: string, rpcPassword: string): void {
     const pruneMB = pruneGB * 1024
+    // walletnotify appends the txid to a file our main process watches
+    const notifyCmd = process.platform === 'win32'
+      ? `cmd /c echo %s >> "${this.notifyFile}"`
+      : `/bin/sh -c 'echo %s >> "${this.notifyFile}"'`
     const conf = [
       'server=1',
       'listen=0',
@@ -27,7 +33,8 @@ export class BitcoindManager {
       `rpcuser=${rpcUser}`,
       `rpcpassword=${rpcPassword}`,
       'rpcbind=127.0.0.1',
-      'rpcallowip=127.0.0.1'
+      'rpcallowip=127.0.0.1',
+      `walletnotify=${notifyCmd}`
     ].join('\n')
     writeFileSync(join(this.dataDir, 'bitcoin.conf'), conf)
   }
