@@ -129,7 +129,7 @@ function DetailRow({ label, value, mono }: { label: string; value: string; mono?
 
 const s: Record<string, React.CSSProperties> = {
   title: { fontSize: 20, fontWeight: 600, margin: 0 },
-  refresh: { fontSize: 12, background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: 0 },
+  refresh: { fontSize: 14, background: 'none', border: '1px solid #2d3048', borderRadius: 6, color: '#94a3b8', cursor: 'pointer', padding: '6px 12px' },
   badge: { fontSize: 11, background: '#7f1d1d66', border: '1px solid #f87171', color: '#f87171', borderRadius: 4, padding: '2px 8px', fontWeight: 600 },
   alertBadge: { fontSize: 11, background: '#7f1d1d44', color: '#f87171', borderRadius: 4, padding: '1px 6px' },
   card: {
@@ -140,11 +140,11 @@ const s: Record<string, React.CSSProperties> = {
   meta: { fontSize: 12, color: '#64748b', marginBottom: 2 },
   details: { marginTop: 12, paddingTop: 12, borderTop: '1px solid #2d3048' },
   btnSecondary: {
-    padding: '5px 12px', background: 'none', border: '1px solid #2d3048',
-    borderRadius: 5, color: '#64748b', fontSize: 12, cursor: 'pointer'
+    padding: '6px 12px', background: 'none', border: '1px solid #2d3048',
+    borderRadius: 6, color: '#94a3b8', fontSize: 14, cursor: 'pointer'
   },
   btnVerify: {
-    padding: '5px 12px', background: 'none', border: '1px solid #f7931a55',
-    borderRadius: 5, color: '#f7931a', fontSize: 12, cursor: 'pointer', fontWeight: 600
+    padding: '6px 12px', background: 'none', border: '1px solid #f7931a55',
+    borderRadius: 6, color: '#f7931a', fontSize: 14, cursor: 'pointer', fontWeight: 600
   }
 }

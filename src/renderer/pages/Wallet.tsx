@@ -254,7 +254,7 @@ function Send({ onSent, balanceSat }: { onSent: () => void; balanceSat: number }
 
 const s: Record<string, React.CSSProperties> = {
   title: { fontSize: 20, fontWeight: 600, margin: 0 },
-  refresh: { fontSize: 12, background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: 0 },
+  refresh: { fontSize: 14, background: 'none', border: '1px solid #2d3048', borderRadius: 6, color: '#94a3b8', cursor: 'pointer', padding: '6px 12px' },
   error: { background: '#7f1d1d33', border: '1px solid #f87171', borderRadius: 6, padding: '10px 14px', color: '#f87171', fontSize: 13, marginBottom: 16 },
   success: { background: '#14532d33', border: '1px solid #22c55e', borderRadius: 6, padding: '10px 14px', color: '#22c55e', fontSize: 13, marginBottom: 16 },
 
