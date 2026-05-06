@@ -22,17 +22,14 @@ export default function App(): JSX.Element {
 
   useEffect(() => {
     window.api.install.getStatus().then((s) => {
+      document.getElementById('splash')?.remove()
       if (s === 'installed') setAppState('ready')
       else setAppState(s)
     })
   }, [])
 
   if (appState === 'loading') {
-    return (
-      <div style={{ background: 'var(--bg)', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <img src={logo} alt="FunkPay" style={{ width: 180 }} />
-      </div>
-    )
+    return null
   }
 
   if (appState === 'not_installed' || appState === 'in_progress') {
