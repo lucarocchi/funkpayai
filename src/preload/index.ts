@@ -18,5 +18,9 @@ contextBridge.exposeInMainWorld('api', {
     send:    (address: string, amountSat: number, subtractFee?: boolean) => ipcRenderer.invoke('wallet:send', address, amountSat, subtractFee),
     listTransactions: (limit?: number) => ipcRenderer.invoke('wallet:listTransactions', limit)
   },
+  payments: {
+    list:     () => ipcRenderer.invoke('payments:list'),
+    reverify: (id: string) => ipcRenderer.invoke('payments:reverify', id)
+  },
   status: () => ipcRenderer.invoke('status')
 })

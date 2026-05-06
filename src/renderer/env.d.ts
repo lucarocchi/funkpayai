@@ -19,6 +19,10 @@ interface Window {
       send:             (address: string, amountSat: number, subtractFee?: boolean) => Promise<string>
       listTransactions: (limit?: number) => Promise<unknown[]>
     }
+    payments: {
+      list:     () => Promise<import('../main/payments').PaymentRecord[]>
+      reverify: (id: string) => Promise<Record<string, unknown>>
+    }
     status: () => Promise<{ bitcoind: boolean; mcp: boolean; mcpPort: number }>
   }
 }

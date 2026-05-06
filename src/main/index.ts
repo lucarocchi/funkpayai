@@ -7,6 +7,7 @@ import { BitcoindManager } from './bitcoind'
 import { BitcoinRpc } from './rpc'
 import { McpServerManager } from './mcp-server'
 import { loadSettings, saveSettings, Settings } from './settings'
+import { getLedger } from './payments'
 
 app.setName('FunkPay MCP')
 
@@ -203,6 +204,52 @@ ipcMain.handle('wallet:send', async (_, address: string, amountSat: number, subt
 ipcMain.handle('wallet:listTransactions', async (_, limit = 20) => {
   if (!rpcGlobal) throw new Error('Node not ready')
   return rpcGlobal.listTransactions(limit)
+})
+
+// IPC — payments ledger
+ipcMain.handle('payments:list', () => getLedger().list())
+
+ipcMain.handle('payments:reverify', async (_, id: string) => {
+  const ledger = getLedger()
+  const record = ledger.list().find((r) => r.id === id)
+  if (!record) throw new Error('Record not found')
+
+  const result: Record<string, unknown> = {}
+
+  // on-chain check
+  if (record.txid && rpcGlobal) {
+    try {
+      const tx = await rpcGlobal.getTransaction(record.txid)
+      result.on_chain_confs = tx.confirmations
+      ledger.update(id, { on_chain_confs: tx.confirmations })
+    } catch { result.on_chain_error = 'node unreachable' }
+  }
+
+  // merchant check
+  if (record.merchant_url && record.payment_id) {
+    try {
+      const base = record.merchant_url.replace(/\/$/, '')
+      const res = await fetch(`${base}/invoices/${record.payment_id}`)
+      if (res.ok) {
+        const inv = await res.json() as Record<string, unknown>
+        result.merchant_status = inv.status
+        result.merchant_confs = inv.confirmations
+        ledger.update(id, {
+          merchant_status: inv.status as string,
+          on_chain_confs: (inv.confirmations as number) ?? record.on_chain_confs,
+          needs_attention: false
+        })
+      } else {
+        result.merchant_error = `HTTP ${res.status}`
+      }
+    } catch (e: unknown) {
+      result.merchant_error = e instanceof Error ? e.message : String(e)
+      // on-chain confirmed but merchant failed → flag it
+      if ((result.on_chain_confs as number) > 0) ledger.update(id, { needs_attention: true })
+    }
+  }
+
+  return { record: ledger.list().find((r) => r.id === id), ...result }
 })
 
 // IPC — runtime

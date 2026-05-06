@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 
 type ApprovalMode = 'never' | 'threshold' | 'always'
 
+interface Merchant { name: string; url: string }
+
 interface ShippingInfo {
   firstName: string; lastName: string; email: string; phone: string
   address1: string; address2: string; city: string; state: string
@@ -18,6 +20,8 @@ interface Settings {
   rpcUrl: string; rpcUser: string; rpcPassword: string
   mcpPort: number; pruneGB: number
   approvalMode: ApprovalMode; approvalThresholdSat: number
+  confirmationsRequired: number
+  merchants: Merchant[]
   shipping: ShippingInfo; billing: BillingInfo
 }
 
@@ -196,6 +200,35 @@ export default function Settings(): JSX.Element {
         )}
       </Section>
 
+      {/* MERCHANTS */}
+      <Section title="Trusted Merchants">
+        <p style={styles.hint}>FunkPay merchant servers the agent can use. Name is used by the agent to identify them.</p>
+        {(s.merchants ?? []).map((m, i) => (
+          <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'flex-end' }}>
+            <Field label={i === 0 ? 'Name' : ''} style={{ flex: '0 0 140px' }}>
+              <input style={styles.input} value={m.name} placeholder="btcfunk.com"
+                onChange={(e) => {
+                  const merchants = [...s.merchants]
+                  merchants[i] = { ...merchants[i], name: e.target.value }
+                  set({ merchants })
+                }} />
+            </Field>
+            <Field label={i === 0 ? 'Server URL' : ''} style={{ flex: 1 }}>
+              <input style={styles.input} value={m.url} placeholder="https://btcfunk.com/pay"
+                onChange={(e) => {
+                  const merchants = [...s.merchants]
+                  merchants[i] = { ...merchants[i], url: e.target.value }
+                  set({ merchants })
+                }} />
+            </Field>
+            <button style={styles.removeBtn} onClick={() => set({ merchants: s.merchants.filter((_, j) => j !== i) })}>✕</button>
+          </div>
+        ))}
+        <button style={styles.addBtn} onClick={() => set({ merchants: [...(s.merchants ?? []), { name: '', url: '' }] })}>
+          + Add merchant
+        </button>
+      </Section>
+
       {/* NODE & MCP */}
       <Section title="Bitcoin Node (RPC)">
         <Field label="RPC URL">
@@ -273,5 +306,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#e2e8f0', fontSize: 13, outline: 'none'
   },
   checkRow: { display: 'flex', alignItems: 'center', cursor: 'pointer' },
-  btn: { marginTop: 8, padding: '10px 24px', background: '#f7931a', border: 'none', borderRadius: 6, color: '#000', fontWeight: 700, fontSize: 14, cursor: 'pointer' }
+  btn: { marginTop: 8, padding: '10px 24px', background: '#f7931a', border: 'none', borderRadius: 6, color: '#000', fontWeight: 700, fontSize: 14, cursor: 'pointer' },
+  addBtn: { marginTop: 4, padding: '6px 14px', background: 'none', border: '1px dashed #2d3048', borderRadius: 6, color: '#64748b', fontSize: 13, cursor: 'pointer' },
+  removeBtn: { padding: '7px 10px', background: 'none', border: '1px solid #2d3048', borderRadius: 6, color: '#64748b', fontSize: 12, cursor: 'pointer', marginBottom: 0, flexShrink: 0 }
 }

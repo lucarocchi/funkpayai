@@ -30,6 +30,11 @@ export interface BillingInfo {
   country: string
 }
 
+export interface Merchant {
+  name: string
+  url: string   // base URL of btcfunkpay server, e.g. https://btcfunk.com/pay
+}
+
 export interface Settings {
   // Node & MCP
   rpcUrl: string
@@ -42,6 +47,8 @@ export interface Settings {
   approvalThresholdSat: number
   // 0 = release on detected (mempool), 1+ = wait N confirmations
   confirmationsRequired: number
+  // Trusted merchants
+  merchants: Merchant[]
   // Identity
   shipping: ShippingInfo
   billing: BillingInfo
@@ -66,6 +73,7 @@ const DEFAULTS: Settings = {
   approvalMode: 'threshold',
   approvalThresholdSat: 100_000,
   confirmationsRequired: 1,
+  merchants: [{ name: 'btcfunk.com', url: 'https://btcfunk.com/pay' }],
   mcpPort: 3282,
   pruneGB: 10,
   shipping: { ...EMPTY_SHIPPING },
@@ -84,6 +92,7 @@ export function loadSettings(): Settings {
     return {
       ...DEFAULTS,
       ...saved,
+      merchants: Array.isArray(saved.merchants) ? saved.merchants : DEFAULTS.merchants,
       shipping: { ...EMPTY_SHIPPING, ...saved.shipping },
       billing:  { ...EMPTY_BILLING,  ...saved.billing  }
     }

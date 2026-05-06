@@ -25,6 +25,7 @@ async function freePort(port: number): Promise<void> {
 import { z } from 'zod'
 import { BitcoinRpc } from './rpc'
 import { loadSettings } from './settings'
+import { getLedger } from './payments'
 
 type ApprovalHandler = (address: string, amountSat: number) => Promise<boolean>
 
@@ -80,6 +81,10 @@ export class McpServerManager {
         }
 
         const txid = await this.rpc.sendToAddress(address, amount_sat, comment)
+        // update ledger record if we have one for this address
+        const ledger = getLedger()
+        const existing = ledger.list().find((r) => r.address === address && !r.txid)
+        if (existing) ledger.update(existing.id, { txid })
         return { content: [{ type: 'text', text: txid }] }
       }
     )
@@ -134,6 +139,17 @@ export class McpServerManager {
 
         try {
           const data = await httpPost(`${base}/invoices`, body)
+          // log to ledger so we can recover if merchant goes down
+          getLedger().add({
+            merchant_url: base,
+            payment_id: data.payment_id as string,
+            address: data.address as string,
+            amount_sat: (data.amount_sat as number) ?? amount_sat ?? 0,
+            txid: null,
+            on_chain_confs: 0,
+            merchant_status: 'pending',
+            needs_attention: false
+          })
           return {
             content: [
               {
@@ -191,6 +207,8 @@ export class McpServerManager {
         const required = settings.confirmationsRequired
         const releaseOn = required === 0 ? 'detected' : 'confirmed'
         const base = merchant_url.replace(/\/$/, '')
+        const ledger = getLedger()
+        const record = ledger.findByPaymentId(payment_id)
         const deadline = Date.now() + timeout_seconds * 1000
         const POLL_INTERVAL = 15_000
 
@@ -200,40 +218,75 @@ export class McpServerManager {
             const status = inv.status as string
             const confs = (inv.confirmations as number) ?? 0
 
+            if (record) ledger.update(record.id, { merchant_status: status, on_chain_confs: confs, txid: (inv.txid as string) ?? record.txid })
+
             const done =
               required === 0
                 ? status === 'detected' || status === 'confirmed' || status === 'overpaid'
                 : (status === 'confirmed' || status === 'overpaid') && confs >= required
 
             if (done) {
+              if (record) ledger.update(record.id, { needs_attention: false })
               return {
                 content: [{
                   type: 'text',
-                  text: JSON.stringify({
-                    payment_id,
-                    status,
-                    confirmations: confs,
-                    received_sat: inv.received_sat,
-                    txid: inv.txid
-                  }, null, 2)
+                  text: JSON.stringify({ payment_id, status, confirmations: confs, received_sat: inv.received_sat, txid: inv.txid }, null, 2)
                 }]
               }
             }
 
             if (status === 'expired') {
+              if (record) ledger.update(record.id, { needs_attention: true })
               return {
                 content: [{ type: 'text', text: `Invoice ${payment_id} expired before payment was received.` }],
                 isError: true
               }
             }
-          } catch { /* network hiccup, retry */ }
+          } catch { /* merchant unreachable, keep trying */ }
 
           await new Promise((r) => setTimeout(r, POLL_INTERVAL))
         }
 
+        // timeout — check on-chain directly to give agent full picture
+        let onChainInfo = ''
+        if (record?.txid) {
+          try {
+            const tx = await this.rpc.getTransaction(record.txid)
+            onChainInfo = ` On-chain: ${tx.confirmations} confirmations.`
+            if (record) ledger.update(record.id, { on_chain_confs: tx.confirmations, needs_attention: tx.confirmations > 0 })
+          } catch { /* ignore */ }
+        }
+
         return {
-          content: [{ type: 'text', text: `Timeout: payment not ${releaseOn} within ${timeout_seconds}s.` }],
+          content: [{ type: 'text', text: `Timeout: payment not ${releaseOn} within ${timeout_seconds}s.${onChainInfo} Use get_invoice_status to retry or check the Payments tab in FunkPayAI.` }],
           isError: true
+        }
+      }
+    )
+
+    s.tool(
+      'list_merchants',
+      'List trusted FunkPay merchant servers configured by the user',
+      {},
+      async () => {
+        const { merchants } = loadSettings()
+        return { content: [{ type: 'text', text: JSON.stringify(merchants, null, 2) }] }
+      }
+    )
+
+    s.tool(
+      'discover_merchant',
+      'Auto-discover FunkPay server for a domain via /.well-known/funkpay.json. Use when the user says "buy from example.com".',
+      { domain: z.string().describe('Domain to probe, e.g. btcfunk.com') },
+      async ({ domain }) => {
+        const clean = domain.replace(/^https?:\/\//, '').replace(/\/.*$/, '')
+        const url = `https://${clean}/.well-known/funkpay.json`
+        try {
+          const data = await httpGet(url) as Record<string, unknown>
+          if (!data.server) return { content: [{ type: 'text', text: `${clean} has a /.well-known/funkpay.json but missing "server" field.` }], isError: true }
+          return { content: [{ type: 'text', text: JSON.stringify({ domain: clean, server: data.server, name: data.name ?? clean }, null, 2) }] }
+        } catch {
+          return { content: [{ type: 'text', text: `${clean} does not expose a FunkPay discovery endpoint. Ask the user for the merchant server URL directly.` }], isError: true }
         }
       }
     )
