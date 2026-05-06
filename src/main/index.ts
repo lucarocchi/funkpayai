@@ -81,8 +81,12 @@ function createWindow(): void {
 export async function startServices(): Promise<void> {
   const settings = loadSettings()
 
+  const network = settings.network ?? 'mainnet'
+  const rpcPort = network === 'testnet' ? 18332 : 8332
+  const rpcUrl = `http://127.0.0.1:${rpcPort}`
+
   const baseRpc = new BitcoinRpc({
-    url: settings.rpcUrl,
+    url: rpcUrl,
     user: settings.rpcUser,
     password: settings.rpcPassword
   })
@@ -92,6 +96,7 @@ export async function startServices(): Promise<void> {
     settings.pruneGB,
     settings.rpcUser,
     settings.rpcPassword,
+    network,
     (line) => mainWindow?.webContents.send('install:log', `[node] ${line}`)
   )
   bitcoind.start()

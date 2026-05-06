@@ -11,22 +11,22 @@ export class BitcoindManager {
 
   private onLog: (line: string) => void
 
-  constructor(binaryPath: string, pruneGB: number, rpcUser: string, rpcPassword: string, onLog?: (line: string) => void) {
+  constructor(binaryPath: string, pruneGB: number, rpcUser: string, rpcPassword: string, network: 'mainnet' | 'testnet' = 'mainnet', onLog?: (line: string) => void) {
     this.binaryPath = binaryPath
     this.onLog = onLog ?? console.log
-    this.dataDir = join(app.getPath('userData'), 'bitcoin')
-    this.notifyFile = join(app.getPath('userData'), 'wallet-notify.txt')
+    const subdir = network === 'testnet' ? 'bitcoin-testnet' : 'bitcoin'
+    this.dataDir = join(app.getPath('userData'), subdir)
+    this.notifyFile = join(app.getPath('userData'), `wallet-notify${network === 'testnet' ? '-testnet' : ''}.txt`)
     mkdirSync(this.dataDir, { recursive: true })
-    this.writeConfig(pruneGB, rpcUser, rpcPassword)
+    this.writeConfig(pruneGB, rpcUser, rpcPassword, network)
   }
 
-  private writeConfig(pruneGB: number, rpcUser: string, rpcPassword: string): void {
+  private writeConfig(pruneGB: number, rpcUser: string, rpcPassword: string, network: 'mainnet' | 'testnet'): void {
     const pruneMB = pruneGB * 1024
-    // walletnotify appends the txid to a file our main process watches
     const notifyCmd = process.platform === 'win32'
       ? `cmd /c echo %s >> "${this.notifyFile}"`
       : `/bin/sh -c 'echo %s >> "${this.notifyFile}"'`
-    const conf = [
+    const lines = [
       'server=1',
       'listen=0',
       `prune=${pruneMB}`,
@@ -35,8 +35,11 @@ export class BitcoindManager {
       'rpcbind=127.0.0.1',
       'rpcallowip=127.0.0.1',
       `walletnotify=${notifyCmd}`
-    ].join('\n')
-    writeFileSync(join(this.dataDir, 'bitcoin.conf'), conf)
+    ]
+    if (network === 'testnet') {
+      lines.push('testnet=1', '[test]', 'rpcport=18332', 'port=18333')
+    }
+    writeFileSync(join(this.dataDir, 'bitcoin.conf'), lines.join('\n'))
   }
 
   start(): void {
