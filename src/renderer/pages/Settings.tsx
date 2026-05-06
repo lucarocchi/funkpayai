@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { X, Check } from 'lucide-react'
 
 type ApprovalMode = 'never' | 'threshold' | 'always'
 
@@ -221,7 +222,7 @@ export default function Settings(): JSX.Element {
                   set({ merchants })
                 }} />
             </Field>
-            <button style={styles.removeBtn} onClick={() => set({ merchants: s.merchants.filter((_, j) => j !== i) })}>✕</button>
+            <button style={styles.removeBtn} onClick={() => set({ merchants: s.merchants.filter((_, j) => j !== i) })}><X size={14} /></button>
           </div>
         ))}
         <button style={styles.addBtn} onClick={() => set({ merchants: [...(s.merchants ?? []), { name: '', url: '' }] })}>
@@ -261,7 +262,7 @@ export default function Settings(): JSX.Element {
       </Section>
 
       <button style={styles.btn} onClick={save}>
-        {saved ? '✓ Saved' : 'Save'}
+        {saved ? <><Check size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Saved</> : 'Save'}
       </button>
     </div>
   )

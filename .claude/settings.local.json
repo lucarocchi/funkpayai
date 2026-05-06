@@ -23,7 +23,18 @@
       "Bash(xattr *)",
       "Bash(security find-identity *)",
       "Bash(bash \"/Users/lucarocchi/Library/Application Support/FunkPay MCP/install.sh\")",
-      "Bash(codesign --force --sign - \"/Users/lucarocchi/Library/Application Support/FunkPay MCP/bitcoin-core/bitcoind\")"
+      "Bash(codesign --force --sign - \"/Users/lucarocchi/Library/Application Support/FunkPay MCP/bitcoin-core/bitcoind\")",
+      "Bash(git push *)",
+      "Bash(npm ls *)",
+      "Bash(pkill -f \"electron\")",
+      "Bash(pkill -f \"npm run dev\")",
+      "Bash(echo \"started pid $!\")",
+      "Bash(echo \"pid $!\")",
+      "Bash(curl -s --user luca:funkpay123 --data-binary '{\"jsonrpc\":\"1.0\",\"method\":\"ping\",\"params\":[]}' http://127.0.0.1:8332/)",
+      "Bash(sips -Z 200 /Users/lucarocchi/Projects/funkpayai/src/renderer/assets/logo.png --out /Users/lucarocchi/Projects/funkpayai/src/renderer/assets/logo-splash.png)",
+      "Bash(python3 *)",
+      "Bash(git checkout *)",
+      "Bash(npm list *)"
     ]
   }
 }

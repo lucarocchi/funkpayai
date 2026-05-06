@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { RefreshCw, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react'
 import type { PaymentRecord } from '../../main/payments'
 
 export default function Payments(): JSX.Element {
@@ -36,7 +37,7 @@ export default function Payments(): JSX.Element {
         {attention.length > 0 && (
           <span style={s.badge}>{attention.length} need attention</span>
         )}
-        <button style={s.refresh} onClick={load}>↻ Refresh</button>
+        <button style={s.refresh} onClick={load}><RefreshCw size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Refresh</button>
       </div>
 
       {loading && <div style={{ color: '#64748b' }}>Loading…</div>}
@@ -76,7 +77,7 @@ function PaymentRow({ record: r, onReverify, verifying }: {
               {status.toUpperCase()}
             </span>
             {r.needs_attention && (
-              <span style={s.alertBadge}>⚠ needs attention</span>
+              <span style={s.alertBadge}><AlertTriangle size={11} style={{ verticalAlign: 'middle', marginRight: 3 }} />needs attention</span>
             )}
           </div>
 
@@ -92,14 +93,15 @@ function PaymentRow({ record: r, onReverify, verifying }: {
 
         <div style={{ display: 'flex', gap: 8, marginLeft: 12 }}>
           <button style={s.btnSecondary} onClick={() => setExpanded(!expanded)}>
-            {expanded ? 'Less' : 'Details'}
+            {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
           <button
             style={{ ...s.btnVerify, opacity: verifying ? 0.6 : 1 }}
             onClick={() => onReverify(r.id)}
             disabled={verifying}
           >
-            {verifying ? '…' : '↻ Verify'}
+            <RefreshCw size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+            {verifying ? '…' : 'Verify'}
           </button>
         </div>
       </div>

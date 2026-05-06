@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { RefreshCw, Copy, Check } from 'lucide-react'
 import QRCode from 'qrcode'
 
 interface Tx {
@@ -41,7 +42,7 @@ export default function Wallet(): JSX.Element {
     <div style={{ maxWidth: 600 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, marginBottom: 24 }}>
         <h1 style={s.title}>Wallet</h1>
-        <button style={s.refresh} onClick={load}>↻ Refresh</button>
+        <button style={s.refresh} onClick={load}><RefreshCw size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />Refresh</button>
       </div>
 
       {error && <div style={s.error}>{error}</div>}
@@ -154,7 +155,10 @@ function Receive(): JSX.Element {
           <canvas ref={canvasRef} style={{ borderRadius: 8 }} />
           <div style={s.addressBox}>{address}</div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button style={s.btn} onClick={copy}>{copied ? '✓ Copied' : 'Copy address'}</button>
+            <button style={s.btn} onClick={copy}>
+              {copied ? <Check size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} /> : <Copy size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />}
+              {copied ? 'Copied' : 'Copy address'}
+            </button>
             <button style={s.btnSecondary} onClick={generate}>New address</button>
           </div>
         </div>
