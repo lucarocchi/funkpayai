@@ -3,6 +3,10 @@
   "productName": "FunkPay MCP",
   "version": "0.1.0",
   "description": "Bitcoin wallet for AI agents — FunkPay ecosystem",
+  "author": {
+    "name": "Luca Rocchi",
+    "email": "lr1313@gmail.com"
+  },
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
