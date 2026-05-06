@@ -16,11 +16,19 @@ const nav: { id: Page; label: string }[] = [
   { id: 'settings', label: 'Settings' }
 ]
 
+function hideSplash(): void {
+  const el = document.getElementById('splash')
+  if (!el) return
+  el.classList.add('fade')
+  setTimeout(() => el.remove(), 380)
+}
+
 export default function App(): JSX.Element {
   const [appState, setAppState] = useState<AppState>('loading')
   const [page, setPage] = useState<Page>('dashboard')
 
   useEffect(() => {
+    hideSplash()
     window.api.install.getStatus().then((s) => {
       if (s === 'installed') setAppState('ready')
       else setAppState(s)

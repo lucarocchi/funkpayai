@@ -52,11 +52,15 @@ function createWindow(): void {
     minWidth: 700,
     minHeight: 500,
     title: 'FunkPay MCP',
+    backgroundColor: '#0f1117',
+    show: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false
     }
   })
+
+  mainWindow.once('ready-to-show', () => mainWindow?.show())
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
