@@ -16,19 +16,11 @@ const nav: { id: Page; label: string }[] = [
   { id: 'settings', label: 'Settings' }
 ]
 
-function hideSplash(): void {
-  const el = document.getElementById('splash')
-  if (!el) return
-  el.classList.add('fade')
-  setTimeout(() => el.remove(), 380)
-}
-
 export default function App(): JSX.Element {
   const [appState, setAppState] = useState<AppState>('loading')
   const [page, setPage] = useState<Page>('dashboard')
 
   useEffect(() => {
-    hideSplash()
     window.api.install.getStatus().then((s) => {
       if (s === 'installed') setAppState('ready')
       else setAppState(s)
@@ -36,7 +28,11 @@ export default function App(): JSX.Element {
   }, [])
 
   if (appState === 'loading') {
-    return <div style={{ background: '#0f1117', height: '100vh' }} />
+    return (
+      <div style={{ background: 'var(--bg)', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <img src={logo} alt="FunkPay" style={{ width: 180 }} />
+      </div>
+    )
   }
 
   if (appState === 'not_installed' || appState === 'in_progress') {
