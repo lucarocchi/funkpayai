@@ -8,6 +8,7 @@ import { BitcoinRpc } from './rpc'
 import { McpServerManager } from './mcp-server'
 import { loadSettings, saveSettings, Settings } from './settings'
 import { getLedger } from './payments'
+import { dark as theme } from '../shared/theme'
 
 app.setName('FunkPay MCP')
 
@@ -52,7 +53,7 @@ function createWindow(): void {
     minWidth: 700,
     minHeight: 500,
     title: 'FunkPay MCP',
-    backgroundColor: '#0f1117',
+    backgroundColor: theme.bg,
     show: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
