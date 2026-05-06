@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
+import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync } from 'fs'
 import { is } from '@electron-toolkit/utils'
 import { BitcoindInstaller } from './installer'
 import { BitcoindManager } from './bitcoind'
@@ -16,6 +17,34 @@ let rpcGlobal: BitcoinRpc | null = null
 
 const installer = new BitcoindInstaller()
 let logUnwatch: (() => void) | null = null
+
+const MAX_BACKUPS = 30
+
+function backupWallet(): void {
+  const src = join(app.getPath('userData'), 'bitcoin', 'wallets', 'funkpay', 'wallet.dat')
+  if (!existsSync(src)) return
+
+  const backupDir = join(app.getPath('userData'), 'wallet-backups')
+  mkdirSync(backupDir, { recursive: true })
+
+  // find next index
+  const existing = readdirSync(backupDir)
+    .filter((f) => /^wallet-\d+\.dat$/.test(f))
+    .map((f) => parseInt(f.replace('wallet-', '').replace('.dat', ''), 10))
+    .sort((a, b) => a - b)
+
+  const next = existing.length ? existing[existing.length - 1] + 1 : 1
+  const dest = join(backupDir, `wallet-${String(next).padStart(3, '0')}.dat`)
+  copyFileSync(src, dest)
+
+  // prune oldest beyond MAX_BACKUPS
+  if (existing.length >= MAX_BACKUPS) {
+    const toDelete = existing.slice(0, existing.length - MAX_BACKUPS + 1)
+    for (const idx of toDelete) {
+      rmSync(join(backupDir, `wallet-${String(idx).padStart(3, '0')}.dat`), { force: true })
+    }
+  }
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -71,6 +100,7 @@ export async function startServices(): Promise<void> {
 
   const rpc = await setupWallet()
   rpcGlobal = rpc
+  backupWallet()
 
   mcp = new McpServerManager(rpc, async (address, amountSat) => {
     const result = await dialog.showMessageBox(mainWindow!, {
