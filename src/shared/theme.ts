@@ -7,3 +7,13 @@ export const dark = {
   textDim:   '#64748b',
   accent:    '#f7931a',
 }
+
+export const light = {
+  bg:        '#f8fafc',
+  surface:   '#ffffff',
+  border:    '#e2e8f0',
+  text:      '#0f172a',
+  textMuted: '#475569',
+  textDim:   '#94a3b8',
+  accent:    '#f7931a',
+}

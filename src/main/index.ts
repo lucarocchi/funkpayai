@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, nativeTheme } from 'electron'
 import { join } from 'path'
 import { existsSync, mkdirSync, readdirSync, rmSync, watch, readFileSync, writeFileSync } from 'fs'
 import { is } from '@electron-toolkit/utils'
@@ -8,7 +8,11 @@ import { BitcoinRpc } from './rpc'
 import { McpServerManager } from './mcp-server'
 import { loadSettings, saveSettings, Settings } from './settings'
 import { getLedger } from './payments'
-import { dark as theme } from '../shared/theme'
+import { dark, light } from '../shared/theme'
+
+function themeBg(): string {
+  return nativeTheme.shouldUseDarkColors ? dark.bg : light.bg
+}
 
 app.setName('FunkPay MCP')
 
@@ -53,7 +57,7 @@ function createWindow(): void {
     minWidth: 700,
     minHeight: 500,
     title: 'FunkPay MCP',
-    backgroundColor: theme.bg,
+    backgroundColor: themeBg(),
     show: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -62,6 +66,10 @@ function createWindow(): void {
   })
 
   mainWindow.once('ready-to-show', () => mainWindow?.show())
+
+  nativeTheme.on('updated', () => {
+    mainWindow?.setBackgroundColor(themeBg())
+  })
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])

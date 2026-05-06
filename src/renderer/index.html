@@ -29,6 +29,16 @@
         transition: opacity 0.35s ease;
       }
       #splash.fade { opacity: 0; pointer-events: none; }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg:         #f8fafc;
+          --surface:    #ffffff;
+          --border:     #e2e8f0;
+          --text:       #0f172a;
+          --text-muted: #475569;
+          --text-dim:   #94a3b8;
+        }
+      }
       input[type=number]::-webkit-outer-spin-button,
       input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
       input[type=number] { -moz-appearance: textfield; }
