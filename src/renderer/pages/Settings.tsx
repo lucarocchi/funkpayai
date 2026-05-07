@@ -63,7 +63,7 @@ export default function Settings(): JSX.Element {
     // Give background reconnect loop a moment to try
     await new Promise((r) => setTimeout(r, 1500))
     const status = await window.api.status()
-    setTestResult(status.nodeConnected ? 'ok' : 'fail')
+    setTestResult(status.nodeStatus !== 'offline' ? 'ok' : 'fail')
     setTimeout(() => setTestResult('idle'), 4000)
   }
 

@@ -280,7 +280,11 @@ ipcMain.handle('app:relaunch', () => { app.relaunch(); app.exit(0) })
 ipcMain.handle('status', async () => {
   const settings = loadSettings()
   const nodeStatus = baseRpcGlobal ? await baseRpcGlobal.getNodeStatus() : 'offline'
-  return { nodeStatus, mcp: walletApi !== null, mcpPort: settings.mcpPort, cliPath }
+  const network = settings.network ?? 'mainnet'
+  const dataDirName = network === 'testnet' ? 'bitcoin-testnet' : 'bitcoin'
+  const dataDir = join(app.getPath('userData'), dataDirName)
+  const bitcoindPath = join(app.getPath('userData'), 'bitcoin-core', 'bitcoind')
+  return { nodeStatus, mcp: walletApi !== null, mcpPort: settings.mcpPort, cliPath, bitcoindPath, dataDir, network }
 })
 
 app.whenReady().then(async () => {

@@ -6,6 +6,9 @@ interface Status {
   mcp: boolean
   mcpPort: number
   cliPath: string | null
+  bitcoindPath: string
+  dataDir: string
+  network: string
 }
 
 interface SyncInfo {
@@ -16,7 +19,7 @@ interface SyncInfo {
 }
 
 export default function Dashboard(): JSX.Element {
-  const [status, setStatus] = useState<Status>({ nodeStatus: 'offline', mcp: false, mcpPort: 3282, cliPath: null })
+  const [status, setStatus] = useState<Status>({ nodeStatus: 'offline', mcp: false, mcpPort: 3282, cliPath: null, bitcoindPath: '', dataDir: '', network: 'mainnet' })
   const [sync, setSync] = useState<SyncInfo | null>(null)
   const [copied, setCopied] = useState(false)
   const [network, setNetwork] = useState<'mainnet' | 'testnet'>('mainnet')
@@ -58,8 +61,6 @@ export default function Dashboard(): JSX.Element {
   else if (isSyncing) { nodeLabel = sync ? `Syncing — ${pct.toFixed(1)}%` : 'Syncing…'; nodeRunning = false }
   else if (nodeUp) { nodeLabel = 'Running'; nodeRunning = true }
 
-  const rpcPort = network === 'testnet' ? 18332 : 8332
-
   return (
     <div>
       <h1 style={styles.title}>Dashboard</h1>
@@ -76,9 +77,9 @@ export default function Dashboard(): JSX.Element {
           <p style={styles.infoText}>
             FunkPay needs a running Bitcoin Core node. Start one with:
           </p>
-          <pre style={styles.cmdBlock}>
-            {`bitcoind -server -rpcuser=funkpay -rpcpassword=funkpay -rpcport=${rpcPort}${network === 'testnet' ? ' -testnet' : ''} -prune=2048 -daemon`}
-          </pre>
+          <div style={{ marginTop: 10 }}>
+            <pre style={styles.cmdBlock}>{`"${status.bitcoindPath}" -datadir="${status.dataDir}" -daemon`}</pre>
+          </div>
           <p style={{ ...styles.infoText, marginTop: 10 }}>
             Credentials are already pre-filled in <strong style={{ color: '#e2e8f0' }}>Settings</strong>.
             If you use different ones, update them there.
@@ -168,7 +169,8 @@ const styles: Record<string, React.CSSProperties> = {
   infoBox: { background: '#1a1d27', border: '1px solid #f7931a33', borderRadius: 8, padding: 20, marginBottom: 16 },
   infoTitle: { fontSize: 13, fontWeight: 600, color: '#f7931a', marginBottom: 8 },
   infoText: { fontSize: 13, color: '#64748b', lineHeight: 1.6, margin: 0 },
-  cmdBlock: { background: '#0f1117', border: '1px solid #2d3048', borderRadius: 6, padding: '10px 14px', fontSize: 12, color: '#94a3b8', overflowX: 'auto', margin: '10px 0 0', whiteSpace: 'pre-wrap', wordBreak: 'break-all' },
+  cmdLabel: { fontSize: 11, color: '#475569', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 4 },
+  cmdBlock: { background: '#0f1117', border: '1px solid #2d3048', borderRadius: 6, padding: '10px 14px', fontSize: 12, color: '#94a3b8', overflowX: 'auto', margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all' },
   progressTrack: { height: 8, background: '#2d3048', borderRadius: 4, overflow: 'hidden' },
   progressFill: { height: '100%', background: 'linear-gradient(90deg, #f7931a, #fbbf24)', borderRadius: 4, transition: 'width 0.8s ease' },
   section: { background: '#1a1d27', border: '1px solid #2d3048', borderRadius: 8, padding: 20 },
