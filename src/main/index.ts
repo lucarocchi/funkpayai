@@ -1,11 +1,11 @@
 import { app, BrowserWindow, ipcMain, dialog, nativeTheme } from 'electron'
 import { join } from 'path'
-import { existsSync, mkdirSync, readdirSync, rmSync, watch, readFileSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readdirSync, rmSync, watch, readFileSync, writeFileSync, copyFileSync, chmodSync } from 'fs'
 import { is } from '@electron-toolkit/utils'
 import { BitcoindInstaller } from './installer'
 import { BitcoindManager } from './bitcoind'
 import { BitcoinRpc } from './rpc'
-import { McpServerManager } from './mcp-server'
+import { WalletApiServer } from './wallet-api'
 import { loadSettings, saveSettings, Settings } from './settings'
 import { getLedger } from './payments'
 import { dark, light } from '../shared/theme'
@@ -18,8 +18,9 @@ app.setName('FunkPay MCP')
 
 let mainWindow: BrowserWindow | null = null
 let bitcoind: BitcoindManager | null = null
-let mcp: McpServerManager | null = null
+let walletApi: WalletApiServer | null = null
 let rpcGlobal: BitcoinRpc | null = null
+let cliPath: string | null = null
 
 const installer = new BitcoindInstaller()
 let logUnwatch: (() => void) | null = null
@@ -47,6 +48,25 @@ async function backupWallet(rpc: BitcoinRpc): Promise<void> {
     for (const idx of toDelete) {
       rmSync(join(backupDir, `wallet-${String(idx).padStart(3, '0')}.dat`), { force: true })
     }
+  }
+}
+
+function installCli(): void {
+  try {
+    const src = is.dev
+      ? join(__dirname, '../../scripts/mcp-stdio.mjs')
+      : join(process.resourcesPath, 'mcp-stdio.mjs')
+
+    if (!existsSync(src)) return
+
+    const dest = join(app.getPath('home'), '.funkpay', 'mcp-stdio.mjs')
+    mkdirSync(join(app.getPath('home'), '.funkpay'), { recursive: true })
+    copyFileSync(src, dest)
+    chmodSync(dest, 0o755)
+    cliPath = dest
+    console.log(`[cli] installed stdio proxy at ${dest}`)
+  } catch (e) {
+    console.error('[cli] install failed:', e)
   }
 }
 
@@ -101,8 +121,8 @@ export async function startServices(): Promise<void> {
   )
   bitcoind.start()
 
-  // MCP starts immediately — wallet connects in background when node is ready
-  mcp = new McpServerManager(null, async (address, amountSat) => {
+  // Wallet API starts immediately — wallet connects in background when node is ready
+  walletApi = new WalletApiServer(async (address, amountSat) => {
     const result = await dialog.showMessageBox(mainWindow!, {
       type: 'question',
       buttons: ['Approve', 'Reject'],
@@ -114,7 +134,7 @@ export async function startServices(): Promise<void> {
     })
     return result.response === 0
   })
-  await mcp.start(settings.mcpPort)
+  await walletApi.start(settings.mcpPort)
 
   // Connect wallet in background — node may take minutes on first sync
   const connectWallet = async (): Promise<void> => {
@@ -124,7 +144,7 @@ export async function startServices(): Promise<void> {
         await baseRpc.ensureWallet('funkpay')
         const rpc = baseRpc.withWallet('funkpay')
         rpcGlobal = rpc
-        mcp.setRpc(rpc)
+        walletApi!.setRpc(rpc)
 
         writeFileSync(bitcoind!.notifyFile, '')
         let backupDebounce: ReturnType<typeof setTimeout> | null = null
@@ -280,10 +300,11 @@ ipcMain.handle('status', async () => {
   } catch {
     bitcoindRunning = false
   }
-  return { bitcoind: bitcoindRunning, mcp: mcp !== null, mcpPort: settings.mcpPort }
+  return { bitcoind: bitcoindRunning, mcp: walletApi !== null, mcpPort: settings.mcpPort, cliPath }
 })
 
 app.whenReady().then(async () => {
+  installCli()
   createWindow()
 
   const status = installer.getStatus()
@@ -312,7 +333,7 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', async () => {
   logUnwatch?.()
-  await mcp?.stop()
+  await walletApi?.stop()
   await bitcoind?.stop()
   if (process.platform !== 'darwin') app.quit()
 })

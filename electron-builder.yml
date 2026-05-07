@@ -9,6 +9,10 @@ directories:
 files:
   - out/**/*
 
+extraResources:
+  - from: scripts/mcp-stdio.mjs
+    to: mcp-stdio.mjs
+
 mac:
   category: public.app-category.finance
   identity: "Luca Rocchi (CXK587548Z)"

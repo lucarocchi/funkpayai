@@ -4,10 +4,11 @@ interface Status {
   bitcoind: boolean
   mcp: boolean
   mcpPort: number
+  cliPath: string | null
 }
 
 export default function Dashboard(): JSX.Element {
-  const [status, setStatus] = useState<Status>({ bitcoind: false, mcp: false, mcpPort: 3282 })
+  const [status, setStatus] = useState<Status>({ bitcoind: false, mcp: false, mcpPort: 3282, cliPath: null })
 
   useEffect(() => {
     const check = async (): Promise<void> => setStatus(await window.api.status())
@@ -16,10 +17,13 @@ export default function Dashboard(): JSX.Element {
     return () => clearInterval(interval)
   }, [])
 
-  const mcpConfig = JSON.stringify(
-    { mcpServers: { funkpayai: { url: `http://127.0.0.1:${status.mcpPort}/mcp` } } },
-    null, 2
-  )
+  const stdioConfig = status.cliPath
+    ? JSON.stringify({ mcpServers: { funkpayai: { command: 'node', args: [status.cliPath] } } }, null, 2)
+    : JSON.stringify({ mcpServers: { funkpayai: { url: `http://127.0.0.1:${status.mcpPort}/api` } } }, null, 2)
+
+  const configLabel = status.cliPath
+    ? 'Add to your MCP client config (stdio — auto-launches this app):'
+    : 'Add to your MCP client config (HTTP fallback):'
 
   return (
     <div>
@@ -27,14 +31,12 @@ export default function Dashboard(): JSX.Element {
 
       <div style={styles.grid}>
         <Card title="Bitcoin Node" running={status.bitcoind} label={status.bitcoind ? 'Running' : 'Starting…'} />
-        <Card title="MCP Server" running={status.mcp} label={status.mcp ? `Port ${status.mcpPort}` : 'Stopped'} />
+        <Card title="Wallet API" running={status.mcp} label={status.mcp ? `Port ${status.mcpPort}` : 'Stopped'} />
       </div>
 
       <div style={styles.hint}>
-        <p style={{ marginBottom: 8, color: '#64748b', fontSize: 13 }}>
-          Add to Claude Code settings to connect:
-        </p>
-        <pre style={styles.code}>{mcpConfig}</pre>
+        <p style={{ marginBottom: 8, color: '#64748b', fontSize: 13 }}>{configLabel}</p>
+        <pre style={styles.code}>{stdioConfig}</pre>
       </div>
     </div>
   )
