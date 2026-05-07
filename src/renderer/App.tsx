@@ -38,7 +38,10 @@ export default function App(): JSX.Element {
   useEffect(() => {
     if (appState !== 'ready') return
     const checkStatus = async (): Promise<void> => setStatus(await window.api.status())
-    const checkSync = async (): Promise<void> => setSync(await window.api.node.syncInfo())
+    const checkSync = async (): Promise<void> => {
+      const s = await window.api.node.syncInfo()
+      if (s !== null) setSync(s)
+    }
     checkStatus(); checkSync()
     const si = setInterval(checkStatus, 5000)
     const sy = setInterval(checkSync, 3000)
