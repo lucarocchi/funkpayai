@@ -22,7 +22,6 @@ mac:
   entitlementsInherit: build/entitlements.mac.plist
   target:
     - target: dmg
-    - target: zip
   artifactName: FunkPayMCP-${version}-${arch}.${ext}
 
 win:
