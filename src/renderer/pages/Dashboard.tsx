@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Copy, Check } from 'lucide-react'
 
 interface Status {
   bitcoind: boolean
@@ -9,6 +10,7 @@ interface Status {
 
 export default function Dashboard(): JSX.Element {
   const [status, setStatus] = useState<Status>({ bitcoind: false, mcp: false, mcpPort: 3282, cliPath: null })
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     const check = async (): Promise<void> => setStatus(await window.api.status())
@@ -21,9 +23,11 @@ export default function Dashboard(): JSX.Element {
     ? JSON.stringify({ mcpServers: { funkpayai: { command: 'node', args: [status.cliPath] } } }, null, 2)
     : JSON.stringify({ mcpServers: { funkpayai: { url: `http://127.0.0.1:${status.mcpPort}/api` } } }, null, 2)
 
-  const configLabel = status.cliPath
-    ? 'Add to your MCP client config (stdio — auto-launches this app):'
-    : 'Add to your MCP client config (HTTP fallback):'
+  const copy = (): void => {
+    navigator.clipboard.writeText(stdioConfig)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   return (
     <div>
@@ -34,9 +38,29 @@ export default function Dashboard(): JSX.Element {
         <Card title="Wallet API" running={status.mcp} label={status.mcp ? `Port ${status.mcpPort}` : 'Stopped'} />
       </div>
 
-      <div style={styles.hint}>
-        <p style={{ marginBottom: 8, color: '#64748b', fontSize: 13 }}>{configLabel}</p>
-        <pre style={styles.code}>{stdioConfig}</pre>
+      <div style={styles.section}>
+        <div style={styles.sectionTitle}>Connect your AI agent</div>
+
+        <p style={styles.hint}>
+          Paste this config into your MCP client (Claude Code, Cursor, etc.) once.
+          The agent will launch FunkPay automatically when needed.
+        </p>
+
+        <div style={{ position: 'relative' }}>
+          <pre style={styles.code}>{stdioConfig}</pre>
+          <button style={styles.copyBtn} onClick={copy}>
+            {copied
+              ? <><Check size={13} style={{ marginRight: 5, verticalAlign: 'middle' }} />Copied</>
+              : <><Copy size={13} style={{ marginRight: 5, verticalAlign: 'middle' }} />Copy config</>
+            }
+          </button>
+        </div>
+
+        {!status.cliPath && (
+          <p style={styles.warn}>
+            ⚠ Proxy not installed yet — restart the app to complete setup.
+          </p>
+        )}
       </div>
     </div>
   )
@@ -62,22 +86,21 @@ function Card({ title, running, label }: { title: string; running: boolean; labe
 
 const styles: Record<string, React.CSSProperties> = {
   title: { fontSize: 20, fontWeight: 600, marginBottom: 24 },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 32 },
-  card: {
-    background: '#1a1d27',
-    border: '1px solid #2d3048',
-    borderRadius: 8,
-    padding: 20
-  },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 24 },
+  card: { background: '#1a1d27', border: '1px solid #2d3048', borderRadius: 8, padding: 20 },
   cardTitle: { fontSize: 11, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em' },
-  hint: { marginTop: 8 },
+  section: { background: '#1a1d27', border: '1px solid #2d3048', borderRadius: 8, padding: 20 },
+  sectionTitle: { fontSize: 11, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 },
+  hint: { fontSize: 13, color: '#64748b', marginBottom: 14, lineHeight: 1.5 },
   code: {
-    background: '#1a1d27',
-    border: '1px solid #2d3048',
-    borderRadius: 6,
-    padding: 16,
-    fontSize: 12,
-    color: '#94a3b8',
-    overflowX: 'auto'
-  }
+    background: '#0f1117', border: '1px solid #2d3048', borderRadius: 6,
+    padding: '14px 16px', fontSize: 12, color: '#94a3b8',
+    overflowX: 'auto', margin: 0
+  },
+  copyBtn: {
+    position: 'absolute', top: 10, right: 10,
+    padding: '5px 12px', background: '#2d3048', border: '1px solid #3d4068',
+    borderRadius: 5, color: '#94a3b8', fontSize: 12, cursor: 'pointer'
+  },
+  warn: { marginTop: 12, fontSize: 12, color: '#eab308' }
 }
