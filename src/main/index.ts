@@ -118,8 +118,7 @@ export async function startServices(): Promise<void> {
     settings.pruneGB,
     settings.rpcUser,
     settings.rpcPassword,
-    network,
-    (line) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('install:log', `[node] ${line}`) }
+    network
   )
   bitcoind.start()
   bitcoindStarted = true

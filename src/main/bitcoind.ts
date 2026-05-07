@@ -1,19 +1,27 @@
 import { app } from 'electron'
-import { spawn, ChildProcess } from 'child_process'
+import { spawn } from 'child_process'
 import { join } from 'path'
 import { mkdirSync, writeFileSync } from 'fs'
 
 export class BitcoindManager {
-  private process: ChildProcess | null = null
   private dataDir: string
   private binaryPath: string
+  private rpcPort: number
+  private rpcUser: string
+  private rpcPassword: string
   readonly notifyFile: string
 
-  private onLog: (line: string) => void
-
-  constructor(binaryPath: string, pruneGB: number, rpcUser: string, rpcPassword: string, network: 'mainnet' | 'testnet' = 'mainnet', onLog?: (line: string) => void) {
+  constructor(
+    binaryPath: string,
+    pruneGB: number,
+    rpcUser: string,
+    rpcPassword: string,
+    network: 'mainnet' | 'testnet' = 'mainnet'
+  ) {
     this.binaryPath = binaryPath
-    this.onLog = onLog ?? console.log
+    this.rpcUser = rpcUser
+    this.rpcPassword = rpcPassword
+    this.rpcPort = network === 'testnet' ? 18332 : 8332
     const subdir = network === 'testnet' ? 'bitcoin-testnet' : 'bitcoin'
     this.dataDir = join(app.getPath('userData'), subdir)
     this.notifyFile = join(app.getPath('userData'), `wallet-notify${network === 'testnet' ? '-testnet' : ''}.txt`)
@@ -43,29 +51,51 @@ export class BitcoindManager {
   }
 
   start(): void {
-    if (this.process) return
-
-    this.process = spawn(this.binaryPath, [`-datadir=${this.dataDir}`], {
-      stdio: ['ignore', 'pipe', 'pipe']
+    // Launch as daemon — detaches from this process so it survives app close/crash
+    const proc = spawn(this.binaryPath, [`-datadir=${this.dataDir}`, '-daemon'], {
+      detached: true,
+      stdio: 'ignore'
     })
-
-    this.process.stdout?.on('data', (d) => this.onLog(d.toString().trim()))
-    this.process.stderr?.on('data', (d) => this.onLog(d.toString().trim()))
-    this.process.on('exit', (code) => {
-      this.onLog(`bitcoind exited with code ${code}`)
-      this.process = null
-    })
+    proc.unref()
+    console.log(`[bitcoind] daemon launched (port ${this.rpcPort})`)
   }
 
-  stop(): Promise<void> {
-    return new Promise((resolve) => {
-      if (!this.process) return resolve()
-      this.process.once('exit', () => resolve())
-      this.process.kill('SIGTERM')
-    })
+  async stop(): Promise<void> {
+    try {
+      await this.rpcCall('stop')
+      // Wait up to 15s for it to actually shut down
+      for (let i = 0; i < 15; i++) {
+        await sleep(1000)
+        if (!await this.isRpcReady()) return
+      }
+    } catch { /* already stopped or not reachable */ }
   }
 
-  isRunning(): boolean {
-    return this.process !== null
+  async isRpcReady(): Promise<boolean> {
+    try {
+      await this.rpcCall('ping')
+      return true
+    } catch {
+      return false
+    }
   }
+
+  private async rpcCall(method: string, params: unknown[] = []): Promise<unknown> {
+    const res = await fetch(`http://127.0.0.1:${this.rpcPort}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Basic ' + Buffer.from(`${this.rpcUser}:${this.rpcPassword}`).toString('base64')
+      },
+      body: JSON.stringify({ jsonrpc: '1.0', id: 1, method, params }),
+      signal: AbortSignal.timeout(5000)
+    })
+    const json = await res.json() as { result: unknown; error: { message: string } | null }
+    if (json.error) throw new Error(json.error.message)
+    return json.result
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms))
 }
