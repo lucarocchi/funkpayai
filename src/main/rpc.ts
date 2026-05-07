@@ -80,6 +80,11 @@ export class BitcoinRpc {
   }
 
   async isAlive(): Promise<boolean> {
+    const s = await this.getNodeStatus()
+    return s !== 'offline'
+  }
+
+  async getNodeStatus(): Promise<'offline' | 'busy' | 'online'> {
     try {
       const res = await fetch(this.config.url, {
         method: 'POST',
@@ -87,9 +92,11 @@ export class BitcoinRpc {
         body: JSON.stringify({ jsonrpc: '1.0', id: 0, method: 'ping', params: [] }),
         signal: AbortSignal.timeout(5000)
       })
-      return res.status === 200 || res.status === 503
+      if (res.status === 200) return 'online'
+      if (res.status === 503) return 'busy'
+      return 'offline'
     } catch {
-      return false
+      return 'offline'
     }
   }
 

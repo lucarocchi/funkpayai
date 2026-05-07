@@ -50,8 +50,8 @@ const EMPTY_BILLING: BillingInfo = {
 const DEFAULTS: Settings = {
   network: 'mainnet',
   rpcUrl: 'http://127.0.0.1:8332',
-  rpcUser: '',
-  rpcPassword: '',
+  rpcUser: 'funkpay',
+  rpcPassword: 'funkpay',
   approvalMode: 'threshold',
   approvalThresholdSat: 100_000,
   confirmationsRequired: 1,

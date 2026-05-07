@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Copy, Check } from 'lucide-react'
 
 interface Status {
-  nodeConnected: boolean
+  nodeStatus: 'offline' | 'busy' | 'online'
   mcp: boolean
   mcpPort: number
 }
@@ -15,7 +15,7 @@ interface SyncInfo {
 }
 
 export default function Dashboard(): JSX.Element {
-  const [status, setStatus] = useState<Status>({ nodeConnected: false, mcp: false, mcpPort: 3282 })
+  const [status, setStatus] = useState<Status>({ nodeStatus: 'offline', mcp: false, mcpPort: 3282 })
   const [sync, setSync] = useState<SyncInfo | null>(null)
   const [copied, setCopied] = useState(false)
   const [network, setNetwork] = useState<'mainnet' | 'testnet'>('mainnet')
@@ -48,12 +48,14 @@ export default function Dashboard(): JSX.Element {
   }
 
   const pct = sync ? Math.round(sync.progress * 1000) / 10 : 0
-  const isSyncing = status.nodeConnected && (sync ? sync.syncing : true)
+  const nodeUp = status.nodeStatus !== 'offline'
+  const isSyncing = nodeUp && (sync ? sync.syncing : true)
 
   let nodeLabel = 'Not connected'
   let nodeRunning = false
-  if (isSyncing) { nodeLabel = sync ? `Syncing — ${pct.toFixed(1)}%` : 'Syncing…'; nodeRunning = false }
-  else if (status.nodeConnected) { nodeLabel = 'Running'; nodeRunning = true }
+  if (status.nodeStatus === 'busy') { nodeLabel = sync ? `Syncing — ${pct.toFixed(1)}%` : 'Syncing…'; nodeRunning = false }
+  else if (isSyncing) { nodeLabel = sync ? `Syncing — ${pct.toFixed(1)}%` : 'Syncing…'; nodeRunning = false }
+  else if (nodeUp) { nodeLabel = 'Running'; nodeRunning = true }
 
   const rpcPort = network === 'testnet' ? 18332 : 8332
 
@@ -66,25 +68,38 @@ export default function Dashboard(): JSX.Element {
         <Card title="Wallet API" running={status.mcp} label={status.mcp ? `Port ${status.mcpPort}` : 'Stopped'} />
       </div>
 
-      {/* Node not connected — show setup instructions */}
-      {!status.nodeConnected && (
+      {/* Node offline — setup instructions */}
+      {status.nodeStatus === 'offline' && (
         <div style={{ ...styles.infoBox, borderColor: '#3d4068', marginBottom: 16 }}>
           <div style={styles.infoTitle}>Bitcoin node not connected</div>
           <p style={styles.infoText}>
-            FunkPay needs a running Bitcoin Core node with wallet support. Start one with:
+            FunkPay needs a running Bitcoin Core node. Start one with:
           </p>
           <pre style={styles.cmdBlock}>
-            {`bitcoind -server -rpcuser=funkpay -rpcpassword=funkpay -rpcport=${rpcPort}${network === 'testnet' ? ' -testnet' : ''} -daemon`}
+            {`bitcoind -server -rpcuser=funkpay -rpcpassword=funkpay -rpcport=${rpcPort}${network === 'testnet' ? ' -testnet' : ''} -prune=2048 -daemon`}
           </pre>
           <p style={{ ...styles.infoText, marginTop: 10 }}>
-            Then set the RPC credentials in <strong style={{ color: '#e2e8f0' }}>Settings</strong> to match.
-            The wallet will connect automatically once the node responds.
+            Credentials are already pre-filled in <strong style={{ color: '#e2e8f0' }}>Settings</strong>.
+            If you use different ones, update them there.
+            The wallet connects automatically once the node responds.
           </p>
         </div>
       )}
 
-      {/* Syncing phase */}
-      {isSyncing && sync && (
+      {/* Node busy (503) — IBD work queue full */}
+      {status.nodeStatus === 'busy' && !sync && (
+        <div style={{ ...styles.infoBox, borderColor: '#3d4068', marginBottom: 16 }}>
+          <div style={styles.infoTitle}>Node is syncing — RPC queue busy</div>
+          <p style={styles.infoText}>
+            Bitcoin Core is responding with <code style={{ color: '#94a3b8' }}>503 Work queue depth exceeded</code>.
+            This is normal during initial block download — the node is processing blocks as fast as it can.
+            Progress will appear here once the queue clears.
+          </p>
+        </div>
+      )}
+
+      {/* Syncing phase with known progress */}
+      {nodeUp && isSyncing && sync && (
         <div style={styles.infoBox}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <div style={styles.infoTitle}>Syncing Bitcoin blockchain</div>

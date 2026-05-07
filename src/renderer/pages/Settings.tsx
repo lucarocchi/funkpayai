@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { X, Check } from 'lucide-react'
+import { X, Check, Eye, EyeOff } from 'lucide-react'
 
 type ApprovalMode = 'never' | 'threshold' | 'always'
 
@@ -31,6 +31,7 @@ export default function Settings(): JSX.Element {
   const [s, setS] = useState<Settings | null>(null)
   const [saved, setSaved] = useState(false)
   const [testResult, setTestResult] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle')
+  const [showPassword, setShowPassword] = useState(false)
 
   useEffect(() => {
     window.api.settings.load().then((loaded) => setS(loaded))
@@ -87,8 +88,17 @@ export default function Settings(): JSX.Element {
               onChange={(e) => set({ rpcUser: e.target.value })} />
           </Field>
           <Field label="Password">
-            <input style={styles.input} type="password" value={s.rpcPassword}
-              onChange={(e) => set({ rpcPassword: e.target.value })} />
+            <div style={{ position: 'relative' }}>
+              <input style={{ ...styles.input, paddingRight: 36 }} type={showPassword ? 'text' : 'password'} value={s.rpcPassword}
+                onChange={(e) => set({ rpcPassword: e.target.value })} />
+              <button
+                style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: 0, display: 'flex' }}
+                onClick={() => setShowPassword((v) => !v)}
+                type="button"
+              >
+                {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
           </Field>
         </Row>
         <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 12 }}>

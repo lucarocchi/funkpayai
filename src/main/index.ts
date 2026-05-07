@@ -261,8 +261,8 @@ ipcMain.handle('settings:save', async (_, settings: Settings) => {
 ipcMain.handle('app:relaunch', () => { app.relaunch(); app.exit(0) })
 ipcMain.handle('status', async () => {
   const settings = loadSettings()
-  const nodeConnected = baseRpcGlobal ? await baseRpcGlobal.isAlive() : false
-  return { nodeConnected, mcp: walletApi !== null, mcpPort: settings.mcpPort }
+  const nodeStatus = baseRpcGlobal ? await baseRpcGlobal.getNodeStatus() : 'offline'
+  return { nodeStatus, mcp: walletApi !== null, mcpPort: settings.mcpPort }
 })
 
 app.whenReady().then(async () => {
