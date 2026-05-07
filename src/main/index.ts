@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, nativeTheme } from 'electron'
 import { join } from 'path'
 import { homedir } from 'os'
-import { readdirSync, mkdirSync, rmSync } from 'fs'
+import { readdirSync, mkdirSync, rmSync, existsSync, copyFileSync, chmodSync } from 'fs'
 import { is } from '@electron-toolkit/utils'
 import { BitcoinRpc } from './rpc'
 import { WalletApiServer } from './wallet-api'
@@ -24,11 +24,29 @@ if (process.platform === 'darwin') {
 
 let mainWindow: BrowserWindow | null = null
 let walletApi: WalletApiServer | null = null
+let cliPath: string | null = null
 let rpcGlobal: BitcoinRpc | null = null
 let baseRpcGlobal: BitcoinRpc | null = null
 let lastSyncInfo: { blocks: number; headers: number; progress: number; syncing: boolean } | null = null
 
 const MAX_BACKUPS = 30
+
+function installCli(): void {
+  try {
+    const src = is.dev
+      ? join(__dirname, '../../scripts/mcp-stdio.mjs')
+      : join(process.resourcesPath, 'mcp-stdio.mjs')
+    if (!existsSync(src)) return
+    const dest = join(app.getPath('home'), '.funkpay', 'mcp-stdio.mjs')
+    mkdirSync(join(app.getPath('home'), '.funkpay'), { recursive: true })
+    copyFileSync(src, dest)
+    chmodSync(dest, 0o755)
+    cliPath = dest
+    console.log(`[cli] installed stdio proxy at ${dest}`)
+  } catch (e) {
+    console.error('[cli] install failed:', e)
+  }
+}
 
 async function backupWallet(rpc: BitcoinRpc): Promise<void> {
   const backupDir = join(app.getPath('userData'), 'wallet-backups')
@@ -262,10 +280,11 @@ ipcMain.handle('app:relaunch', () => { app.relaunch(); app.exit(0) })
 ipcMain.handle('status', async () => {
   const settings = loadSettings()
   const nodeStatus = baseRpcGlobal ? await baseRpcGlobal.getNodeStatus() : 'offline'
-  return { nodeStatus, mcp: walletApi !== null, mcpPort: settings.mcpPort }
+  return { nodeStatus, mcp: walletApi !== null, mcpPort: settings.mcpPort, cliPath }
 })
 
 app.whenReady().then(async () => {
+  installCli()
   createWindow()
   startServices().catch((e) => console.error('[startup] startServices failed:', e))
 

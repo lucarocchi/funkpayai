@@ -5,6 +5,7 @@ interface Status {
   nodeStatus: 'offline' | 'busy' | 'online'
   mcp: boolean
   mcpPort: number
+  cliPath: string | null
 }
 
 interface SyncInfo {
@@ -15,7 +16,7 @@ interface SyncInfo {
 }
 
 export default function Dashboard(): JSX.Element {
-  const [status, setStatus] = useState<Status>({ nodeStatus: 'offline', mcp: false, mcpPort: 3282 })
+  const [status, setStatus] = useState<Status>({ nodeStatus: 'offline', mcp: false, mcpPort: 3282, cliPath: null })
   const [sync, setSync] = useState<SyncInfo | null>(null)
   const [copied, setCopied] = useState(false)
   const [network, setNetwork] = useState<'mainnet' | 'testnet'>('mainnet')
@@ -37,7 +38,7 @@ export default function Dashboard(): JSX.Element {
   }, [])
 
   const mcpConfig = JSON.stringify(
-    { mcpServers: { funkpayai: { url: `http://127.0.0.1:${status.mcpPort}/mcp` } } },
+    { mcpServers: { funkpayai: { command: 'node', args: [status.cliPath ?? '~/.funkpay/mcp-stdio.mjs'] } } },
     null, 2
   )
 
@@ -134,6 +135,9 @@ export default function Dashboard(): JSX.Element {
             }
           </button>
         </div>
+        {!status.cliPath && (
+          <p style={styles.warn}>⚠ Proxy not installed — restart the app to fix this.</p>
+        )}
       </div>
     </div>
   )
@@ -171,5 +175,6 @@ const styles: Record<string, React.CSSProperties> = {
   sectionTitle: { fontSize: 11, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 },
   hint: { fontSize: 13, color: '#64748b', marginBottom: 14, lineHeight: 1.5 },
   code: { background: '#0f1117', border: '1px solid #2d3048', borderRadius: 6, padding: '14px 16px', fontSize: 12, color: '#94a3b8', overflowX: 'auto', margin: 0 },
-  copyBtn: { position: 'absolute', top: 10, right: 10, padding: '5px 12px', background: '#2d3048', border: '1px solid #3d4068', borderRadius: 5, color: '#94a3b8', fontSize: 12, cursor: 'pointer' }
+  copyBtn: { position: 'absolute', top: 10, right: 10, padding: '5px 12px', background: '#2d3048', border: '1px solid #3d4068', borderRadius: 5, color: '#94a3b8', fontSize: 12, cursor: 'pointer' },
+  warn: { marginTop: 10, fontSize: 12, color: '#eab308' }
 }

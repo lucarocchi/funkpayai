@@ -17,7 +17,7 @@ interface Window {
       list:     () => Promise<import('../main/payments').PaymentRecord[]>
       reverify: (id: string) => Promise<Record<string, unknown>>
     }
-    status: () => Promise<{ nodeStatus: 'offline' | 'busy' | 'online'; mcp: boolean; mcpPort: number }>
+    status: () => Promise<{ nodeStatus: 'offline' | 'busy' | 'online'; mcp: boolean; mcpPort: number; cliPath: string | null }>
     app: {
       relaunch: () => Promise<void>
     }
