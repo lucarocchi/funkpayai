@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog, nativeTheme } from 'electron'
 import { join } from 'path'
+import { homedir } from 'os'
 import { existsSync, mkdirSync, readdirSync, rmSync, watch, readFileSync, writeFileSync, copyFileSync, chmodSync } from 'fs'
 import { is } from '@electron-toolkit/utils'
 import { BitcoindInstaller } from './installer'
@@ -15,6 +16,14 @@ function themeBg(): string {
 }
 
 app.setName('FunkPay MCP')
+// Pin userData to the same path in dev and packaged so they share node/wallet state
+if (process.platform === 'darwin') {
+  app.setPath('userData', join(homedir(), 'Library', 'Application Support', 'FunkPay MCP'))
+} else if (process.platform === 'win32') {
+  app.setPath('userData', join(homedir(), 'AppData', 'Roaming', 'FunkPay MCP'))
+} else {
+  app.setPath('userData', join(homedir(), '.config', 'FunkPay MCP'))
+}
 
 let mainWindow: BrowserWindow | null = null
 let bitcoind: BitcoindManager | null = null
@@ -120,7 +129,7 @@ export async function startServices(): Promise<void> {
     settings.rpcPassword,
     network
   )
-  bitcoind.start()
+  await bitcoind.start()
   bitcoindStarted = true
 
   // Wallet API starts immediately — wallet connects in background when node is ready

@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import { spawn } from 'child_process'
 import { join } from 'path'
-import { mkdirSync, writeFileSync } from 'fs'
+import { mkdirSync, writeFileSync, rmSync, existsSync } from 'fs'
 
 export class BitcoindManager {
   private dataDir: string
@@ -65,8 +65,20 @@ export class BitcoindManager {
     writeFileSync(join(this.dataDir, 'bitcoin.conf'), lines.join('\n'))
   }
 
-  start(): void {
-    // Launch as daemon — detaches from this process so it survives app close/crash
+  async start(): Promise<void> {
+    // If already responding, reuse the running daemon
+    if (await this.isRpcReady()) {
+      console.log(`[bitcoind] already running on port ${this.rpcPort}`)
+      return
+    }
+
+    // Stale lock file from a hard kill — remove it before spawning
+    const lockFile = join(this.dataDir, '.lock')
+    if (existsSync(lockFile)) {
+      rmSync(lockFile, { force: true })
+      console.log('[bitcoind] removed stale lock file')
+    }
+
     const proc = spawn(this.binaryPath, [`-datadir=${this.dataDir}`, '-daemon'], {
       detached: true,
       stdio: 'ignore'
