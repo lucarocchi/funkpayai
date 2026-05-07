@@ -157,6 +157,8 @@ const TOOLS = [
 // ── Tool dispatch ─────────────────────────────────────────────────────────────
 
 async function callTool(name, args) {
+  // If app not reachable, try to launch it before dispatching
+  if (!await isReady()) await ensureAppRunning()
   switch (name) {
     case 'get_balance': {
       const { sat } = await apiPost('/balance', {})
@@ -281,8 +283,6 @@ async function handleMessage(msg) {
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
-
-await ensureAppRunning()
 
 const rl = createInterface({ input: process.stdin, terminal: false })
 
