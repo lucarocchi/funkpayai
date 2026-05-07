@@ -3,58 +3,35 @@ import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { join } from 'path'
 
 export type Network = 'mainnet' | 'testnet'
-
 export type ApprovalMode = 'never' | 'threshold' | 'always'
 
 export interface ShippingInfo {
-  firstName: string
-  lastName: string
-  email: string
-  phone: string
-  address1: string
-  address2: string
-  city: string
-  state: string
-  zip: string
-  country: string
+  firstName: string; lastName: string; email: string; phone: string
+  address1: string; address2: string; city: string; state: string
+  zip: string; country: string
 }
 
 export interface BillingInfo {
-  sameAsShipping: boolean
-  company: string
-  vatId: string
-  firstName: string
-  lastName: string
-  email: string
-  address1: string
-  city: string
-  zip: string
-  country: string
+  sameAsShipping: boolean; company: string; vatId: string
+  firstName: string; lastName: string; email: string
+  address1: string; city: string; zip: string; country: string
 }
 
 export interface Merchant {
   name: string
-  url: string   // base URL of btcfunkpay server, e.g. https://btcfunk.com/pay
+  url: string
 }
 
 export interface Settings {
-  // Network
   network: Network
-  installedNetworks: Network[]
-  // Node & MCP
   rpcUrl: string
   rpcUser: string
   rpcPassword: string
   mcpPort: number
-  pruneGB: number
-  // Payments
   approvalMode: ApprovalMode
   approvalThresholdSat: number
-  // 0 = release on detected (mempool), 1+ = wait N confirmations
   confirmationsRequired: number
-  // Trusted merchants
   merchants: Merchant[]
-  // Identity
   shipping: ShippingInfo
   billing: BillingInfo
 }
@@ -65,24 +42,21 @@ const EMPTY_SHIPPING: ShippingInfo = {
 }
 
 const EMPTY_BILLING: BillingInfo = {
-  sameAsShipping: true,
-  company: '', vatId: '',
+  sameAsShipping: true, company: '', vatId: '',
   firstName: '', lastName: '', email: '',
   address1: '', city: '', zip: '', country: ''
 }
 
 const DEFAULTS: Settings = {
   network: 'mainnet',
-  installedNetworks: [],
   rpcUrl: 'http://127.0.0.1:8332',
-  rpcUser: 'luca',
-  rpcPassword: 'funkpay123',
+  rpcUser: '',
+  rpcPassword: '',
   approvalMode: 'threshold',
   approvalThresholdSat: 100_000,
   confirmationsRequired: 1,
   merchants: [{ name: 'btcfunk.com', url: 'https://btcfunk.com/pay' }],
   mcpPort: 3282,
-  pruneGB: 10,
   shipping: { ...EMPTY_SHIPPING },
   billing: { ...EMPTY_BILLING }
 }
@@ -96,18 +70,6 @@ export function loadSettings(): Settings {
   if (!existsSync(path)) return { ...DEFAULTS }
   try {
     const saved = JSON.parse(readFileSync(path, 'utf-8'))
-
-    // Migrate: detect installed networks from existing datadirs
-    if (!Array.isArray(saved.installedNetworks) || saved.installedNetworks.length === 0) {
-      const userData = app.getPath('userData')
-      const installed: Network[] = []
-      if (existsSync(join(userData, 'bitcoin', 'bitcoin.conf'))) installed.push('mainnet')
-      if (existsSync(join(userData, 'bitcoin-testnet', 'bitcoin.conf'))) installed.push('testnet')
-      // Fallback: assume active network is installed
-      if (installed.length === 0) installed.push((saved.network as Network) ?? 'mainnet')
-      saved.installedNetworks = installed
-    }
-
     return {
       ...DEFAULTS,
       ...saved,

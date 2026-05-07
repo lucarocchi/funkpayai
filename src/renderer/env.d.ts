@@ -1,13 +1,7 @@
-type InstallStatus = 'not_installed' | 'in_progress' | 'installed'
-
 interface Window {
   api: {
-    install: {
-      getStatus:    () => Promise<InstallStatus>
-      getLog:       () => Promise<string[]>
-      openTerminal: () => Promise<{ ok: boolean; error?: string }>
-      onLog:  (cb: (line: string) => void) => void
-      onDone: (cb: () => void) => void
+    node: {
+      syncInfo: () => Promise<{ blocks: number; headers: number; progress: number; syncing: boolean } | null>
     }
     settings: {
       load: () => Promise<import('../main/settings').Settings>
@@ -23,7 +17,7 @@ interface Window {
       list:     () => Promise<import('../main/payments').PaymentRecord[]>
       reverify: (id: string) => Promise<Record<string, unknown>>
     }
-    status: () => Promise<{ bitcoind: boolean; mcp: boolean; mcpPort: number }>
+    status: () => Promise<{ nodeConnected: boolean; mcp: boolean; mcpPort: number }>
     app: {
       relaunch: () => Promise<void>
     }

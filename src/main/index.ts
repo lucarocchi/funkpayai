@@ -1,10 +1,8 @@
 import { app, BrowserWindow, ipcMain, dialog, nativeTheme } from 'electron'
 import { join } from 'path'
 import { homedir } from 'os'
-import { existsSync, mkdirSync, readdirSync, rmSync, watch, readFileSync, writeFileSync, copyFileSync, chmodSync } from 'fs'
+import { readdirSync, mkdirSync, rmSync } from 'fs'
 import { is } from '@electron-toolkit/utils'
-import { BitcoindInstaller } from './installer'
-import { BitcoindManager } from './bitcoind'
 import { BitcoinRpc } from './rpc'
 import { WalletApiServer } from './wallet-api'
 import { loadSettings, saveSettings, Settings } from './settings'
@@ -16,7 +14,6 @@ function themeBg(): string {
 }
 
 app.setName('FunkPay MCP')
-// Pin userData to the same path in dev and packaged so they share node/wallet state
 if (process.platform === 'darwin') {
   app.setPath('userData', join(homedir(), 'Library', 'Application Support', 'FunkPay MCP'))
 } else if (process.platform === 'win32') {
@@ -26,16 +23,10 @@ if (process.platform === 'darwin') {
 }
 
 let mainWindow: BrowserWindow | null = null
-let bitcoind: BitcoindManager | null = null
 let walletApi: WalletApiServer | null = null
 let rpcGlobal: BitcoinRpc | null = null
 let baseRpcGlobal: BitcoinRpc | null = null
 let lastSyncInfo: { blocks: number; headers: number; progress: number; syncing: boolean } | null = null
-let cliPath: string | null = null
-let bitcoindStarted = false
-
-const installer = new BitcoindInstaller()
-let logUnwatch: (() => void) | null = null
 
 const MAX_BACKUPS = 30
 
@@ -51,34 +42,13 @@ async function backupWallet(rpc: BitcoinRpc): Promise<void> {
   const next = existing.length ? existing[existing.length - 1] + 1 : 1
   const dest = join(backupDir, `wallet-${String(next).padStart(3, '0')}.dat`)
 
-  // backupwallet flushes WAL and copies atomically — safe while node is running
   await rpc.call('backupwallet', [dest])
 
-  // prune oldest beyond MAX_BACKUPS
   if (existing.length >= MAX_BACKUPS) {
     const toDelete = existing.slice(0, existing.length - MAX_BACKUPS + 1)
     for (const idx of toDelete) {
       rmSync(join(backupDir, `wallet-${String(idx).padStart(3, '0')}.dat`), { force: true })
     }
-  }
-}
-
-function installCli(): void {
-  try {
-    const src = is.dev
-      ? join(__dirname, '../../scripts/mcp-stdio.mjs')
-      : join(process.resourcesPath, 'mcp-stdio.mjs')
-
-    if (!existsSync(src)) return
-
-    const dest = join(app.getPath('home'), '.funkpay', 'mcp-stdio.mjs')
-    mkdirSync(join(app.getPath('home'), '.funkpay'), { recursive: true })
-    copyFileSync(src, dest)
-    chmodSync(dest, 0o755)
-    cliPath = dest
-    console.log(`[cli] installed stdio proxy at ${dest}`)
-  } catch (e) {
-    console.error('[cli] install failed:', e)
   }
 }
 
@@ -115,25 +85,14 @@ export async function startServices(): Promise<void> {
 
   const network = settings.network ?? 'mainnet'
   const rpcPort = network === 'testnet' ? 18332 : 8332
-  const rpcUrl = `http://127.0.0.1:${rpcPort}`
+  const rpcUrl = settings.rpcUrl || `http://127.0.0.1:${rpcPort}`
 
-  const baseRpc = baseRpcGlobal = new BitcoinRpc({
+  baseRpcGlobal = new BitcoinRpc({
     url: rpcUrl,
     user: settings.rpcUser,
     password: settings.rpcPassword
   })
 
-  bitcoind = new BitcoindManager(
-    installer.getBinaryPath(),
-    settings.pruneGB,
-    settings.rpcUser,
-    settings.rpcPassword,
-    network
-  )
-  await bitcoind.start()
-  bitcoindStarted = true
-
-  // Wallet API starts immediately — wallet connects in background when node is ready
   walletApi = new WalletApiServer(async (address, amountSat) => {
     const result = await dialog.showMessageBox(mainWindow!, {
       type: 'question',
@@ -148,74 +107,25 @@ export async function startServices(): Promise<void> {
   })
   await walletApi.start(settings.mcpPort)
 
-  // Connect wallet in background — node may take minutes on first sync
+  // Connect wallet in background — node may not be ready immediately
   const connectWallet = async (): Promise<void> => {
-    for (let i = 0; i < 90; i++) {
+    for (let i = 0; i < 180; i++) {
       try {
-        await baseRpc.ping()
-        await baseRpc.ensureWallet('funkpay')
-        const rpc = baseRpc.withWallet('funkpay')
+        await baseRpcGlobal!.ping()
+        await baseRpcGlobal!.ensureWallet('funkpay')
+        const rpc = baseRpcGlobal!.withWallet('funkpay')
         rpcGlobal = rpc
         walletApi!.setRpc(rpc)
-
-        writeFileSync(bitcoind!.notifyFile, '')
-        let backupDebounce: ReturnType<typeof setTimeout> | null = null
-        watch(bitcoind!.notifyFile, () => {
-          if (backupDebounce) clearTimeout(backupDebounce)
-          backupDebounce = setTimeout(async () => {
-            try {
-              const content = readFileSync(bitcoind!.notifyFile, 'utf-8').trim()
-              if (!content) return
-              const txid = content.split('\n').pop()?.trim()
-              if (!txid) return
-              const tx = await rpc.getTransaction(txid).catch(() => null)
-              if (tx && tx.amount > 0) await backupWallet(rpc)
-            } catch { /* ignore */ }
-          }, 500)
-        })
+        console.log('[wallet] connected to Bitcoin node')
         return
       } catch {
-        await new Promise((r) => setTimeout(r, 3000))
+        await new Promise((r) => setTimeout(r, 5000))
       }
     }
+    console.warn('[wallet] could not connect to Bitcoin node after 15 minutes')
   }
   connectWallet().catch(console.error)
 }
-
-// IPC — install
-ipcMain.handle('install:getStatus', () => Promise.resolve(installer.getStatus()))
-ipcMain.handle('install:getLog',    () => installer.getExistingLog())
-
-ipcMain.handle('install:openTerminal', async (_, opts?: { networks?: ('mainnet'|'testnet')[]; defaultNetwork?: 'mainnet'|'testnet' }) => {
-  try {
-    // Persist network selection before install so startServices reads it
-    if (opts?.networks || opts?.defaultNetwork) {
-      const s = loadSettings()
-      if (opts.networks) s.installedNetworks = opts.networks
-      if (opts.defaultNetwork) s.network = opts.defaultNetwork
-      saveSettings(s)
-    }
-    await installer.openTerminal()
-
-    // start watching log file and stream to renderer
-    logUnwatch?.()
-    logUnwatch = installer.watchLog(async (line) => {
-      if (line === '__DONE__') {
-        logUnwatch?.()
-        logUnwatch = null
-        startServices()
-          .then(() => mainWindow?.webContents.send('install:done'))
-          .catch((e) => console.error('[startup] startServices failed:', e))
-      } else {
-        mainWindow?.webContents.send('install:log', line)
-      }
-    })
-
-    return { ok: true }
-  } catch (e: unknown) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) }
-  }
-})
 
 // IPC — wallet
 ipcMain.handle('wallet:getBalance', async () => {
@@ -269,7 +179,6 @@ ipcMain.handle('payments:reverify', async (_, id: string) => {
 
   const result: Record<string, unknown> = {}
 
-  // on-chain check
   if (record.txid && rpcGlobal) {
     try {
       const tx = await rpcGlobal.getTransaction(record.txid)
@@ -278,7 +187,6 @@ ipcMain.handle('payments:reverify', async (_, id: string) => {
     } catch { result.on_chain_error = 'node unreachable' }
   }
 
-  // merchant check
   if (record.merchant_url && record.payment_id) {
     try {
       const base = record.merchant_url.replace(/\/$/, '')
@@ -297,7 +205,6 @@ ipcMain.handle('payments:reverify', async (_, id: string) => {
       }
     } catch (e: unknown) {
       result.merchant_error = e instanceof Error ? e.message : String(e)
-      // on-chain confirmed but merchant failed → flag it
       if ((result.on_chain_confs as number) > 0) ledger.update(id, { needs_attention: true })
     }
   }
@@ -324,36 +231,43 @@ ipcMain.handle('node:syncInfo', async () => {
 
 // IPC — runtime
 ipcMain.handle('settings:load', () => loadSettings())
-ipcMain.handle('settings:save', (_, settings: Settings) => saveSettings(settings))
+ipcMain.handle('settings:save', async (_, settings: Settings) => {
+  saveSettings(settings)
+  // Reconnect with new RPC settings
+  const network = settings.network ?? 'mainnet'
+  const rpcPort = network === 'testnet' ? 18332 : 8332
+  const rpcUrl = settings.rpcUrl || `http://127.0.0.1:${rpcPort}`
+  baseRpcGlobal = new BitcoinRpc({ url: rpcUrl, user: settings.rpcUser, password: settings.rpcPassword })
+  rpcGlobal = null
+  lastSyncInfo = null
+  // reconnect wallet in background
+  const connectWallet = async (): Promise<void> => {
+    for (let i = 0; i < 180; i++) {
+      try {
+        await baseRpcGlobal!.ping()
+        await baseRpcGlobal!.ensureWallet('funkpay')
+        const rpc = baseRpcGlobal!.withWallet('funkpay')
+        rpcGlobal = rpc
+        walletApi?.setRpc(rpc)
+        console.log('[wallet] reconnected after settings change')
+        return
+      } catch {
+        await new Promise((r) => setTimeout(r, 5000))
+      }
+    }
+  }
+  connectWallet().catch(console.error)
+})
 ipcMain.handle('app:relaunch', () => { app.relaunch(); app.exit(0) })
 ipcMain.handle('status', async () => {
   const settings = loadSettings()
-  const bitcoindRunning = baseRpcGlobal ? await baseRpcGlobal.isAlive() : false
-  return { bitcoind: bitcoindRunning, bitcoindStarted, mcp: walletApi !== null, mcpPort: settings.mcpPort, cliPath }
+  const nodeConnected = baseRpcGlobal ? await baseRpcGlobal.isAlive() : false
+  return { nodeConnected, mcp: walletApi !== null, mcpPort: settings.mcpPort }
 })
 
 app.whenReady().then(async () => {
-  installCli()
   createWindow()
-
-  const status = installer.getStatus()
-
-  if (status === 'installed') {
-    startServices().catch((e) => console.error('[startup] startServices failed:', e))
-  } else if (status === 'in_progress') {
-    // resume watching — install was in progress when app was closed
-    logUnwatch = installer.watchLog(async (line) => {
-      if (line === '__DONE__') {
-        logUnwatch?.()
-        logUnwatch = null
-        startServices()
-          .then(() => mainWindow?.webContents.send('install:done'))
-          .catch((e) => console.error('[startup] startServices failed:', e))
-      } else {
-        mainWindow?.webContents.send('install:log', line)
-      }
-    })
-  }
+  startServices().catch((e) => console.error('[startup] startServices failed:', e))
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -361,8 +275,6 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', async () => {
-  logUnwatch?.()
   await walletApi?.stop()
-  await bitcoind?.stop()
   if (process.platform !== 'darwin') app.quit()
 })

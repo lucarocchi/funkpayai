@@ -3,11 +3,9 @@ import Dashboard from './pages/Dashboard'
 import Settings from './pages/Settings'
 import Wallet from './pages/Wallet'
 import Payments from './pages/Payments'
-import Install from './pages/Install'
 import logo from './assets/logo.png'
 
 type Page = 'dashboard' | 'wallet' | 'payments' | 'settings'
-type AppState = 'loading' | 'not_installed' | 'in_progress' | 'ready'
 
 const nav: { id: Page; label: string }[] = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -17,34 +15,15 @@ const nav: { id: Page; label: string }[] = [
 ]
 
 export default function App(): JSX.Element {
-  const [appState, setAppState] = useState<AppState>('loading')
   const [page, setPage] = useState<Page>('dashboard')
   const [network, setNetwork] = useState<'mainnet' | 'testnet'>('mainnet')
 
   useEffect(() => {
-    window.api.install.getStatus().then((s) => {
-      document.getElementById('splash')?.remove()
-      if (s === 'installed') setAppState('ready')
-      else setAppState(s)
-    })
     window.api.settings.load().then((s) => setNetwork(s.network ?? 'mainnet'))
     const onSave = (e: Event): void => setNetwork((e as CustomEvent).detail?.network ?? 'mainnet')
     window.addEventListener('settings-saved', onSave)
     return () => window.removeEventListener('settings-saved', onSave)
   }, [])
-
-  if (appState === 'loading') {
-    return null
-  }
-
-  if (appState === 'not_installed' || appState === 'in_progress') {
-    return (
-      <Install
-        initialStatus={appState}
-        onDone={() => setAppState('ready')}
-      />
-    )
-  }
 
   return (
     <div style={{ display: 'flex', height: '100vh' }}>

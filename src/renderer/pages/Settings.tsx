@@ -19,9 +19,8 @@ interface BillingInfo {
 
 interface Settings {
   network: 'mainnet' | 'testnet'
-  installedNetworks: ('mainnet' | 'testnet')[]
   rpcUrl: string; rpcUser: string; rpcPassword: string
-  mcpPort: number; pruneGB: number
+  mcpPort: number
   approvalMode: ApprovalMode; approvalThresholdSat: number
   confirmationsRequired: number
   merchants: Merchant[]
@@ -31,13 +30,10 @@ interface Settings {
 export default function Settings(): JSX.Element {
   const [s, setS] = useState<Settings | null>(null)
   const [saved, setSaved] = useState(false)
-  const [initialNetwork, setInitialNetwork] = useState<string>('mainnet')
+  const [testResult, setTestResult] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle')
 
   useEffect(() => {
-    window.api.settings.load().then((loaded) => {
-      setS(loaded)
-      setInitialNetwork(loaded.network ?? 'mainnet')
-    })
+    window.api.settings.load().then((loaded) => setS(loaded))
   }, [])
 
   const set = (patch: Partial<Settings>): void =>
@@ -51,34 +47,23 @@ export default function Settings(): JSX.Element {
 
   const save = async (): Promise<void> => {
     if (!s) return
-    const networkChanged = (s.network ?? 'mainnet') !== initialNetwork
-
-    // Switching to a network that hasn't been installed yet
-    if (networkChanged && !s.installedNetworks?.includes(s.network)) {
-      const label = s.network === 'testnet' ? 'Testnet' : 'Mainnet'
-      const confirm = window.confirm(
-        `${label} node hasn't been set up yet.\n\nFunkPay will start syncing the ${label} blockchain — this may take several hours on first launch.\n\nContinue?`
-      )
-      if (!confirm) {
-        set({ network: initialNetwork as 'mainnet' | 'testnet' })
-        return
-      }
-      // Mark as installed so the node starts on relaunch
-      set({ installedNetworks: [...(s.installedNetworks ?? []), s.network] })
-      await window.api.settings.save({ ...s, installedNetworks: [...(s.installedNetworks ?? []), s.network] })
-      window.dispatchEvent(new CustomEvent('settings-saved', { detail: s }))
-      await window.api.app.relaunch()
-      return
-    }
-
     await window.api.settings.save(s)
     window.dispatchEvent(new CustomEvent('settings-saved', { detail: s }))
-    if (networkChanged) {
-      await window.api.app.relaunch()
-      return
-    }
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+  }
+
+  const testConnection = async (): Promise<void> => {
+    if (!s) return
+    setTestResult('testing')
+    // Save first so main process reconnects, then check status
+    await window.api.settings.save(s)
+    window.dispatchEvent(new CustomEvent('settings-saved', { detail: s }))
+    // Give background reconnect loop a moment to try
+    await new Promise((r) => setTimeout(r, 1500))
+    const status = await window.api.status()
+    setTestResult(status.nodeConnected ? 'ok' : 'fail')
+    setTimeout(() => setTestResult('idle'), 4000)
   }
 
   if (!s) return <div style={{ color: '#64748b' }}>Loading…</div>
@@ -86,6 +71,34 @@ export default function Settings(): JSX.Element {
   return (
     <div style={{ maxWidth: 560 }}>
       <h1 style={styles.title}>Settings</h1>
+
+      {/* BITCOIN NODE — most important, at top */}
+      <Section title="Bitcoin Node (RPC)">
+        <p style={styles.hint}>
+          FunkPay connects to your Bitcoin Core node. Start bitcoind with wallet support and enter the credentials here.
+        </p>
+        <Field label="RPC URL">
+          <input style={styles.input} value={s.rpcUrl}
+            onChange={(e) => set({ rpcUrl: e.target.value })} />
+        </Field>
+        <Row style={{ marginTop: 12 }}>
+          <Field label="User">
+            <input style={styles.input} value={s.rpcUser}
+              onChange={(e) => set({ rpcUser: e.target.value })} />
+          </Field>
+          <Field label="Password">
+            <input style={styles.input} type="password" value={s.rpcPassword}
+              onChange={(e) => set({ rpcPassword: e.target.value })} />
+          </Field>
+        </Row>
+        <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button style={styles.testBtn} onClick={testConnection} disabled={testResult === 'testing'}>
+            {testResult === 'testing' ? 'Testing…' : 'Test connection'}
+          </button>
+          {testResult === 'ok' && <span style={{ fontSize: 13, color: '#4ade80' }}>✓ Connected</span>}
+          {testResult === 'fail' && <span style={{ fontSize: 13, color: '#f87171' }}>✗ Could not connect</span>}
+        </div>
+      </Section>
 
       {/* NETWORK */}
       <Section title="Network">
@@ -98,16 +111,6 @@ export default function Settings(): JSX.Element {
         {(s.network ?? 'mainnet') === 'testnet' && (
           <div style={{ marginTop: 8, fontSize: 12, color: '#eab308' }}>
             ⚠ Testnet mode — transactions have no real value
-          </div>
-        )}
-        {s.network !== 'mainnet' && !s.installedNetworks?.includes('mainnet') && (
-          <div style={{ marginTop: 6, fontSize: 12, color: '#64748b' }}>
-            Mainnet not set up yet — select it to start the node
-          </div>
-        )}
-        {s.network !== 'testnet' && !s.installedNetworks?.includes('testnet') && (
-          <div style={{ marginTop: 6, fontSize: 12, color: '#64748b' }}>
-            Testnet not set up yet — select it to start the node
           </div>
         )}
       </Section>
@@ -127,7 +130,6 @@ export default function Settings(): JSX.Element {
               onChange={(e) => set({ approvalThresholdSat: Number(e.target.value) })} />
           </Field>
         )}
-
         <div style={{ marginTop: 20, borderTop: '1px solid #2d3048', paddingTop: 16 }}>
           <label style={styles.label}>Release agent after payment</label>
           <select style={styles.select} value={s.confirmationsRequired}
@@ -200,7 +202,6 @@ export default function Settings(): JSX.Element {
             onChange={(e) => setBilling({ sameAsShipping: e.target.checked })} />
           <span style={{ marginLeft: 8, color: '#94a3b8', fontSize: 14 }}>Same as shipping address</span>
         </label>
-
         <Row style={{ marginTop: 16 }}>
           <Field label="Company (optional)">
             <input style={styles.input} value={s.billing.company}
@@ -211,7 +212,6 @@ export default function Settings(): JSX.Element {
               onChange={(e) => setBilling({ vatId: e.target.value })} />
           </Field>
         </Row>
-
         {!s.billing.sameAsShipping && (
           <>
             <Row>
@@ -252,7 +252,7 @@ export default function Settings(): JSX.Element {
 
       {/* MERCHANTS */}
       <Section title="Trusted Merchants">
-        <p style={styles.hint}>FunkPay merchant servers the agent can use. Name is used by the agent to identify them.</p>
+        <p style={styles.hint}>FunkPay merchant servers the agent can use.</p>
         {(s.merchants ?? []).map((m, i) => (
           <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'flex-end' }}>
             <Field label={i === 0 ? 'Name' : ''} style={{ flex: '0 0 140px' }}>
@@ -279,35 +279,12 @@ export default function Settings(): JSX.Element {
         </button>
       </Section>
 
-      {/* NODE & MCP */}
-      <Section title="Bitcoin Node (RPC)">
-        <Field label="RPC URL">
-          <input style={styles.input} value={s.rpcUrl}
-            onChange={(e) => set({ rpcUrl: e.target.value })} />
-        </Field>
-        <Row style={{ marginTop: 12 }}>
-          <Field label="User">
-            <input style={styles.input} value={s.rpcUser}
-              onChange={(e) => set({ rpcUser: e.target.value })} />
-          </Field>
-          <Field label="Password">
-            <input style={styles.input} type="password" value={s.rpcPassword}
-              onChange={(e) => set({ rpcPassword: e.target.value })} />
-          </Field>
-        </Row>
-      </Section>
-
+      {/* ADVANCED */}
       <Section title="Advanced">
-        <Row>
-          <Field label="MCP Port">
-            <input style={styles.input} type="number" value={s.mcpPort}
-              onChange={(e) => set({ mcpPort: Number(e.target.value) })} />
-          </Field>
-          <Field label="Prune size (GB)">
-            <input style={styles.input} type="number" value={s.pruneGB}
-              onChange={(e) => set({ pruneGB: Number(e.target.value) })} />
-          </Field>
-        </Row>
+        <Field label="MCP Port">
+          <input style={styles.input} type="number" value={s.mcpPort}
+            onChange={(e) => set({ mcpPort: Number(e.target.value) })} />
+        </Field>
       </Section>
 
       <button style={styles.btn} onClick={save}>
@@ -348,7 +325,7 @@ const styles: Record<string, React.CSSProperties> = {
   input: {
     display: 'block', width: '100%', padding: '7px 10px',
     background: '#0f1117', border: '1px solid #2d3048', borderRadius: 6,
-    color: '#e2e8f0', fontSize: 13, outline: 'none'
+    color: '#e2e8f0', fontSize: 13, outline: 'none', boxSizing: 'border-box'
   },
   select: {
     display: 'block', width: '100%', padding: '7px 10px',
@@ -357,6 +334,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   checkRow: { display: 'flex', alignItems: 'center', cursor: 'pointer' },
   btn: { marginTop: 8, padding: '10px 24px', background: '#f7931a', border: 'none', borderRadius: 6, color: '#000', fontWeight: 700, fontSize: 14, cursor: 'pointer' },
+  testBtn: { padding: '7px 16px', background: '#2d3048', border: '1px solid #3d4068', borderRadius: 6, color: '#94a3b8', fontSize: 13, cursor: 'pointer' },
   addBtn: { marginTop: 4, padding: '6px 14px', background: 'none', border: '1px dashed #2d3048', borderRadius: 6, color: '#64748b', fontSize: 13, cursor: 'pointer' },
   removeBtn: { padding: '7px 10px', background: 'none', border: '1px solid #2d3048', borderRadius: 6, color: '#64748b', fontSize: 12, cursor: 'pointer', marginBottom: 0, flexShrink: 0 }
 }

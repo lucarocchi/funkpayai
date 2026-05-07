@@ -2,11 +2,9 @@ import { useEffect, useState } from 'react'
 import { Copy, Check } from 'lucide-react'
 
 interface Status {
-  bitcoind: boolean
-  bitcoindStarted: boolean
+  nodeConnected: boolean
   mcp: boolean
   mcpPort: number
-  cliPath: string | null
 }
 
 interface SyncInfo {
@@ -17,9 +15,14 @@ interface SyncInfo {
 }
 
 export default function Dashboard(): JSX.Element {
-  const [status, setStatus] = useState<Status>({ bitcoind: false, bitcoindStarted: false, mcp: false, mcpPort: 3282, cliPath: null })
+  const [status, setStatus] = useState<Status>({ nodeConnected: false, mcp: false, mcpPort: 3282 })
   const [sync, setSync] = useState<SyncInfo | null>(null)
   const [copied, setCopied] = useState(false)
+  const [network, setNetwork] = useState<'mainnet' | 'testnet'>('mainnet')
+
+  useEffect(() => {
+    window.api.settings.load().then((s) => setNetwork(s.network ?? 'mainnet'))
+  }, [])
 
   useEffect(() => {
     const checkStatus = async (): Promise<void> => setStatus(await window.api.status())
@@ -33,27 +36,26 @@ export default function Dashboard(): JSX.Element {
     return () => { clearInterval(si); clearInterval(sy) }
   }, [])
 
-  const stdioConfig = status.cliPath
-    ? JSON.stringify({ mcpServers: { funkpayai: { command: 'node', args: [status.cliPath] } } }, null, 2)
-    : JSON.stringify({ mcpServers: { funkpayai: { url: `http://127.0.0.1:${status.mcpPort}/api` } } }, null, 2)
+  const mcpConfig = JSON.stringify(
+    { mcpServers: { funkpayai: { url: `http://127.0.0.1:${status.mcpPort}/mcp` } } },
+    null, 2
+  )
 
   const copy = (): void => {
-    navigator.clipboard.writeText(stdioConfig)
+    navigator.clipboard.writeText(mcpConfig)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
   const pct = sync ? Math.round(sync.progress * 1000) / 10 : 0
-  // sync null while bitcoind is running = node busy (IBD work queue full) → still syncing
-  const isSyncing = status.bitcoind && (sync ? sync.syncing : true)
-  const isStarting = !status.bitcoind && status.bitcoindStarted
+  const isSyncing = status.nodeConnected && (sync ? sync.syncing : true)
 
-  // Node card label and color
-  let nodeLabel = 'Not running'
+  let nodeLabel = 'Not connected'
   let nodeRunning = false
-  if (isStarting) { nodeLabel = 'Starting up…'; nodeRunning = false }
-  else if (isSyncing) { nodeLabel = sync ? `Syncing — ${pct.toFixed(1)}%` : 'Syncing…'; nodeRunning = false }
-  else if (status.bitcoind) { nodeLabel = 'Running'; nodeRunning = true }
+  if (isSyncing) { nodeLabel = sync ? `Syncing — ${pct.toFixed(1)}%` : 'Syncing…'; nodeRunning = false }
+  else if (status.nodeConnected) { nodeLabel = 'Running'; nodeRunning = true }
+
+  const rpcPort = network === 'testnet' ? 18332 : 8332
 
   return (
     <div>
@@ -64,17 +66,19 @@ export default function Dashboard(): JSX.Element {
         <Card title="Wallet API" running={status.mcp} label={status.mcp ? `Port ${status.mcpPort}` : 'Stopped'} />
       </div>
 
-      {/* Starting phase */}
-      {isStarting && (
-        <div style={{ ...styles.infoBox, borderColor: '#3d4068' }}>
-          <div style={styles.infoTitle}>⏳ Node is starting up</div>
+      {/* Node not connected — show setup instructions */}
+      {!status.nodeConnected && (
+        <div style={{ ...styles.infoBox, borderColor: '#3d4068', marginBottom: 16 }}>
+          <div style={styles.infoTitle}>Bitcoin node not connected</div>
           <p style={styles.infoText}>
-            Bitcoin Core is launching — this takes a minute on first run.
-            On the very first launch, the node will then sync the blockchain,
-            which <strong style={{ color: '#e2e8f0' }}>may take several hours.</strong>
+            FunkPay needs a running Bitcoin Core node with wallet support. Start one with:
           </p>
-          <p style={{ ...styles.infoText, marginTop: 6 }}>
-            You can leave this running in the background — the app will be ready automatically.
+          <pre style={styles.cmdBlock}>
+            {`bitcoind -server -rpcuser=funkpay -rpcpassword=funkpay -rpcport=${rpcPort}${network === 'testnet' ? ' -testnet' : ''} -daemon`}
+          </pre>
+          <p style={{ ...styles.infoText, marginTop: 10 }}>
+            Then set the RPC credentials in <strong style={{ color: '#e2e8f0' }}>Settings</strong> to match.
+            The wallet will connect automatically once the node responds.
           </p>
         </div>
       )}
@@ -97,7 +101,6 @@ export default function Dashboard(): JSX.Element {
           </div>
           <p style={{ ...styles.infoText, marginTop: 12 }}>
             The wallet will be available as soon as sync completes.
-            You can safely close this window — the node keeps running in the background.
           </p>
         </div>
       )}
@@ -106,10 +109,9 @@ export default function Dashboard(): JSX.Element {
         <div style={styles.sectionTitle}>Connect your AI agent</div>
         <p style={styles.hint}>
           Paste this config into your MCP client (Claude Code, Cursor, etc.) once.
-          The agent will launch FunkPay automatically when needed.
         </p>
         <div style={{ position: 'relative' }}>
-          <pre style={styles.code}>{stdioConfig}</pre>
+          <pre style={styles.code}>{mcpConfig}</pre>
           <button style={styles.copyBtn} onClick={copy}>
             {copied
               ? <><Check size={13} style={{ marginRight: 5, verticalAlign: 'middle' }} />Copied</>
@@ -117,9 +119,6 @@ export default function Dashboard(): JSX.Element {
             }
           </button>
         </div>
-        {!status.cliPath && (
-          <p style={styles.warn}>⚠ Proxy not installed yet — restart the app to complete setup.</p>
-        )}
       </div>
     </div>
   )
@@ -150,12 +149,12 @@ const styles: Record<string, React.CSSProperties> = {
   infoBox: { background: '#1a1d27', border: '1px solid #f7931a33', borderRadius: 8, padding: 20, marginBottom: 16 },
   infoTitle: { fontSize: 13, fontWeight: 600, color: '#f7931a', marginBottom: 8 },
   infoText: { fontSize: 13, color: '#64748b', lineHeight: 1.6, margin: 0 },
+  cmdBlock: { background: '#0f1117', border: '1px solid #2d3048', borderRadius: 6, padding: '10px 14px', fontSize: 12, color: '#94a3b8', overflowX: 'auto', margin: '10px 0 0', whiteSpace: 'pre-wrap', wordBreak: 'break-all' },
   progressTrack: { height: 8, background: '#2d3048', borderRadius: 4, overflow: 'hidden' },
   progressFill: { height: '100%', background: 'linear-gradient(90deg, #f7931a, #fbbf24)', borderRadius: 4, transition: 'width 0.8s ease' },
   section: { background: '#1a1d27', border: '1px solid #2d3048', borderRadius: 8, padding: 20 },
   sectionTitle: { fontSize: 11, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 },
   hint: { fontSize: 13, color: '#64748b', marginBottom: 14, lineHeight: 1.5 },
   code: { background: '#0f1117', border: '1px solid #2d3048', borderRadius: 6, padding: '14px 16px', fontSize: 12, color: '#94a3b8', overflowX: 'auto', margin: 0 },
-  copyBtn: { position: 'absolute', top: 10, right: 10, padding: '5px 12px', background: '#2d3048', border: '1px solid #3d4068', borderRadius: 5, color: '#94a3b8', fontSize: 12, cursor: 'pointer' },
-  warn: { marginTop: 12, fontSize: 12, color: '#eab308' }
+  copyBtn: { position: 'absolute', top: 10, right: 10, padding: '5px 12px', background: '#2d3048', border: '1px solid #3d4068', borderRadius: 5, color: '#94a3b8', fontSize: 12, cursor: 'pointer' }
 }
