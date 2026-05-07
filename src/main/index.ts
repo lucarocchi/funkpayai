@@ -20,6 +20,7 @@ let mainWindow: BrowserWindow | null = null
 let bitcoind: BitcoindManager | null = null
 let walletApi: WalletApiServer | null = null
 let rpcGlobal: BitcoinRpc | null = null
+let baseRpcGlobal: BitcoinRpc | null = null
 let cliPath: string | null = null
 
 const installer = new BitcoindInstaller()
@@ -105,7 +106,7 @@ export async function startServices(): Promise<void> {
   const rpcPort = network === 'testnet' ? 18332 : 8332
   const rpcUrl = `http://127.0.0.1:${rpcPort}`
 
-  const baseRpc = new BitcoinRpc({
+  const baseRpc = baseRpcGlobal = new BitcoinRpc({
     url: rpcUrl,
     user: settings.rpcUser,
     password: settings.rpcPassword
@@ -174,8 +175,15 @@ export async function startServices(): Promise<void> {
 ipcMain.handle('install:getStatus', () => Promise.resolve(installer.getStatus()))
 ipcMain.handle('install:getLog',    () => installer.getExistingLog())
 
-ipcMain.handle('install:openTerminal', async () => {
+ipcMain.handle('install:openTerminal', async (_, opts?: { networks?: ('mainnet'|'testnet')[]; defaultNetwork?: 'mainnet'|'testnet' }) => {
   try {
+    // Persist network selection before install so startServices reads it
+    if (opts?.networks || opts?.defaultNetwork) {
+      const s = loadSettings()
+      if (opts.networks) s.installedNetworks = opts.networks
+      if (opts.defaultNetwork) s.network = opts.defaultNetwork
+      saveSettings(s)
+    }
     await installer.openTerminal()
 
     // start watching log file and stream to renderer
@@ -284,6 +292,22 @@ ipcMain.handle('payments:reverify', async (_, id: string) => {
   }
 
   return { record: ledger.list().find((r) => r.id === id), ...result }
+})
+
+// IPC — node sync info
+ipcMain.handle('node:syncInfo', async () => {
+  if (!baseRpcGlobal) return null
+  try {
+    const info = await baseRpcGlobal.getBlockchainInfo()
+    return {
+      blocks: info.blocks,
+      headers: info.headers,
+      progress: info.verificationprogress,
+      syncing: info.initialblockdownload || info.verificationprogress < 0.9999
+    }
+  } catch {
+    return null
+  }
 })
 
 // IPC — runtime

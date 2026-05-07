@@ -19,6 +19,7 @@ interface BillingInfo {
 
 interface Settings {
   network: 'mainnet' | 'testnet'
+  installedNetworks: ('mainnet' | 'testnet')[]
   rpcUrl: string; rpcUser: string; rpcPassword: string
   mcpPort: number; pruneGB: number
   approvalMode: ApprovalMode; approvalThresholdSat: number
@@ -50,9 +51,29 @@ export default function Settings(): JSX.Element {
 
   const save = async (): Promise<void> => {
     if (!s) return
+    const networkChanged = (s.network ?? 'mainnet') !== initialNetwork
+
+    // Switching to a network that hasn't been installed yet
+    if (networkChanged && !s.installedNetworks?.includes(s.network)) {
+      const label = s.network === 'testnet' ? 'Testnet' : 'Mainnet'
+      const confirm = window.confirm(
+        `${label} node hasn't been set up yet.\n\nFunkPay will start syncing the ${label} blockchain — this may take several hours on first launch.\n\nContinue?`
+      )
+      if (!confirm) {
+        set({ network: initialNetwork as 'mainnet' | 'testnet' })
+        return
+      }
+      // Mark as installed so the node starts on relaunch
+      set({ installedNetworks: [...(s.installedNetworks ?? []), s.network] })
+      await window.api.settings.save({ ...s, installedNetworks: [...(s.installedNetworks ?? []), s.network] })
+      window.dispatchEvent(new CustomEvent('settings-saved', { detail: s }))
+      await window.api.app.relaunch()
+      return
+    }
+
     await window.api.settings.save(s)
     window.dispatchEvent(new CustomEvent('settings-saved', { detail: s }))
-    if ((s.network ?? 'mainnet') !== initialNetwork) {
+    if (networkChanged) {
       await window.api.app.relaunch()
       return
     }
@@ -77,6 +98,16 @@ export default function Settings(): JSX.Element {
         {(s.network ?? 'mainnet') === 'testnet' && (
           <div style={{ marginTop: 8, fontSize: 12, color: '#eab308' }}>
             ⚠ Testnet mode — transactions have no real value
+          </div>
+        )}
+        {s.network !== 'mainnet' && !s.installedNetworks?.includes('mainnet') && (
+          <div style={{ marginTop: 6, fontSize: 12, color: '#64748b' }}>
+            Mainnet not set up yet — select it to start the node
+          </div>
+        )}
+        {s.network !== 'testnet' && !s.installedNetworks?.includes('testnet') && (
+          <div style={{ marginTop: 6, fontSize: 12, color: '#64748b' }}>
+            Testnet not set up yet — select it to start the node
           </div>
         )}
       </Section>

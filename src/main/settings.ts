@@ -2,6 +2,8 @@ import { app } from 'electron'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { join } from 'path'
 
+export type Network = 'mainnet' | 'testnet'
+
 export type ApprovalMode = 'never' | 'threshold' | 'always'
 
 export interface ShippingInfo {
@@ -37,7 +39,8 @@ export interface Merchant {
 
 export interface Settings {
   // Network
-  network: 'mainnet' | 'testnet'
+  network: Network
+  installedNetworks: Network[]
   // Node & MCP
   rpcUrl: string
   rpcUser: string
@@ -70,6 +73,7 @@ const EMPTY_BILLING: BillingInfo = {
 
 const DEFAULTS: Settings = {
   network: 'mainnet',
+  installedNetworks: [],
   rpcUrl: 'http://127.0.0.1:8332',
   rpcUser: 'luca',
   rpcPassword: 'funkpay123',
@@ -92,6 +96,18 @@ export function loadSettings(): Settings {
   if (!existsSync(path)) return { ...DEFAULTS }
   try {
     const saved = JSON.parse(readFileSync(path, 'utf-8'))
+
+    // Migrate: detect installed networks from existing datadirs
+    if (!Array.isArray(saved.installedNetworks) || saved.installedNetworks.length === 0) {
+      const userData = app.getPath('userData')
+      const installed: Network[] = []
+      if (existsSync(join(userData, 'bitcoin', 'bitcoin.conf'))) installed.push('mainnet')
+      if (existsSync(join(userData, 'bitcoin-testnet', 'bitcoin.conf'))) installed.push('testnet')
+      // Fallback: assume active network is installed
+      if (installed.length === 0) installed.push((saved.network as Network) ?? 'mainnet')
+      saved.installedNetworks = installed
+    }
+
     return {
       ...DEFAULTS,
       ...saved,

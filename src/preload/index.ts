@@ -4,9 +4,13 @@ contextBridge.exposeInMainWorld('api', {
   install: {
     getStatus:      () => ipcRenderer.invoke('install:getStatus'),
     getLog:         () => ipcRenderer.invoke('install:getLog'),
-    openTerminal:   () => ipcRenderer.invoke('install:openTerminal'),
+    openTerminal:   (opts?: { networks?: ('mainnet'|'testnet')[]; defaultNetwork?: 'mainnet'|'testnet' }) =>
+      ipcRenderer.invoke('install:openTerminal', opts),
     onLog:  (cb: (line: string) => void) => ipcRenderer.on('install:log',  (_, l) => cb(l)),
     onDone: (cb: () => void)             => ipcRenderer.on('install:done', () => cb())
+  },
+  node: {
+    syncInfo: () => ipcRenderer.invoke('node:syncInfo')
   },
   settings: {
     load: () => ipcRenderer.invoke('settings:load'),

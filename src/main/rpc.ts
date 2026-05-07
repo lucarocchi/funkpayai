@@ -66,6 +66,15 @@ export class BitcoinRpc {
     return this.call('listtransactions', ['*', count])
   }
 
+  async getBlockchainInfo(): Promise<{
+    blocks: number
+    headers: number
+    verificationprogress: number
+    initialblockdownload: boolean
+  }> {
+    return this.call('getblockchaininfo')
+  }
+
   async ping(): Promise<void> {
     await this.call('ping')
   }
