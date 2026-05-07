@@ -22,6 +22,7 @@ let walletApi: WalletApiServer | null = null
 let rpcGlobal: BitcoinRpc | null = null
 let baseRpcGlobal: BitcoinRpc | null = null
 let cliPath: string | null = null
+let bitcoindStarted = false
 
 const installer = new BitcoindInstaller()
 let logUnwatch: (() => void) | null = null
@@ -121,6 +122,7 @@ export async function startServices(): Promise<void> {
     (line) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('install:log', `[node] ${line}`) }
   )
   bitcoind.start()
+  bitcoindStarted = true
 
   // Wallet API starts immediately — wallet connects in background when node is ready
   walletApi = new WalletApiServer(async (address, amountSat) => {
@@ -318,13 +320,12 @@ ipcMain.handle('status', async () => {
   const settings = loadSettings()
   let bitcoindRunning = false
   try {
-    const rpc = new BitcoinRpc({ url: settings.rpcUrl, user: settings.rpcUser, password: settings.rpcPassword })
-    await rpc.ping()
-    bitcoindRunning = true
+    if (baseRpcGlobal) await baseRpcGlobal.ping()
+    bitcoindRunning = !!baseRpcGlobal
   } catch {
     bitcoindRunning = false
   }
-  return { bitcoind: bitcoindRunning, mcp: walletApi !== null, mcpPort: settings.mcpPort, cliPath }
+  return { bitcoind: bitcoindRunning, bitcoindStarted, mcp: walletApi !== null, mcpPort: settings.mcpPort, cliPath }
 })
 
 app.whenReady().then(async () => {

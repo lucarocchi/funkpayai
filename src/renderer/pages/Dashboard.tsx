@@ -3,6 +3,7 @@ import { Copy, Check } from 'lucide-react'
 
 interface Status {
   bitcoind: boolean
+  bitcoindStarted: boolean
   mcp: boolean
   mcpPort: number
   cliPath: string | null
@@ -16,7 +17,7 @@ interface SyncInfo {
 }
 
 export default function Dashboard(): JSX.Element {
-  const [status, setStatus] = useState<Status>({ bitcoind: false, mcp: false, mcpPort: 3282, cliPath: null })
+  const [status, setStatus] = useState<Status>({ bitcoind: false, bitcoindStarted: false, mcp: false, mcpPort: 3282, cliPath: null })
   const [sync, setSync] = useState<SyncInfo | null>(null)
   const [copied, setCopied] = useState(false)
 
@@ -43,37 +44,58 @@ export default function Dashboard(): JSX.Element {
   }
 
   const pct = sync ? Math.round(sync.progress * 100) : 0
-  const isSyncing = sync?.syncing ?? false
+  const isSyncing = status.bitcoind && (sync?.syncing ?? false)
+  const isStarting = !status.bitcoind && status.bitcoindStarted
+
+  // Node card label and color
+  let nodeLabel = 'Not running'
+  let nodeRunning = false
+  if (isStarting) { nodeLabel = 'Starting up…'; nodeRunning = false }
+  else if (isSyncing) { nodeLabel = `Syncing — ${pct}%`; nodeRunning = false }
+  else if (status.bitcoind) { nodeLabel = 'Running'; nodeRunning = true }
 
   return (
     <div>
       <h1 style={styles.title}>Dashboard</h1>
 
       <div style={styles.grid}>
-        <Card title="Bitcoin Node" running={status.bitcoind && !isSyncing} label={
-          !status.bitcoind ? 'Starting…'
-          : isSyncing ? `Syncing ${pct}%`
-          : 'Running'
-        } />
+        <Card title="Bitcoin Node" running={nodeRunning} label={nodeLabel} />
         <Card title="Wallet API" running={status.mcp} label={status.mcp ? `Port ${status.mcpPort}` : 'Stopped'} />
       </div>
 
-      {/* Sync progress */}
-      {status.bitcoind && isSyncing && sync && (
-        <div style={styles.syncBox}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-            <span style={{ fontSize: 13, color: '#94a3b8', fontWeight: 500 }}>
-              Syncing Bitcoin blockchain…
-            </span>
-            <span style={{ fontSize: 13, color: '#f7931a', fontWeight: 700 }}>{pct}%</span>
+      {/* Starting phase */}
+      {isStarting && (
+        <div style={{ ...styles.infoBox, borderColor: '#3d4068' }}>
+          <div style={styles.infoTitle}>⏳ Node is starting up</div>
+          <p style={styles.infoText}>
+            Bitcoin Core is launching — this takes a minute on first run.
+            On the very first launch, the node will then sync the blockchain,
+            which <strong style={{ color: '#e2e8f0' }}>may take several hours.</strong>
+          </p>
+          <p style={{ ...styles.infoText, marginTop: 6 }}>
+            You can leave this running in the background — the app will be ready automatically.
+          </p>
+        </div>
+      )}
+
+      {/* Syncing phase */}
+      {isSyncing && sync && (
+        <div style={styles.infoBox}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div style={styles.infoTitle}>Syncing Bitcoin blockchain</div>
+            <span style={{ fontSize: 18, fontWeight: 700, color: '#f7931a' }}>{pct}%</span>
           </div>
           <div style={styles.progressTrack}>
             <div style={{ ...styles.progressFill, width: `${pct}%` }} />
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 12, color: '#475569' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, fontSize: 12, color: '#475569' }}>
             <span>{sync.blocks.toLocaleString()} / {sync.headers.toLocaleString()} blocks</span>
-            <span>This may take several hours on first launch</span>
+            <span>{pct < 50 ? 'Several hours remaining' : pct < 90 ? 'Getting closer…' : 'Almost done!'}</span>
           </div>
+          <p style={{ ...styles.infoText, marginTop: 12 }}>
+            The wallet will be available as soon as sync completes.
+            You can safely close this window — the node keeps running in the background.
+          </p>
         </div>
       )}
 
@@ -122,9 +144,11 @@ const styles: Record<string, React.CSSProperties> = {
   grid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 16 },
   card: { background: '#1a1d27', border: '1px solid #2d3048', borderRadius: 8, padding: 20 },
   cardTitle: { fontSize: 11, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em' },
-  syncBox: { background: '#1a1d27', border: '1px solid #2d3048', borderRadius: 8, padding: 20, marginBottom: 16 },
-  progressTrack: { height: 6, background: '#2d3048', borderRadius: 3, overflow: 'hidden' },
-  progressFill: { height: '100%', background: '#f7931a', borderRadius: 3, transition: 'width 0.5s ease' },
+  infoBox: { background: '#1a1d27', border: '1px solid #f7931a33', borderRadius: 8, padding: 20, marginBottom: 16 },
+  infoTitle: { fontSize: 13, fontWeight: 600, color: '#f7931a', marginBottom: 8 },
+  infoText: { fontSize: 13, color: '#64748b', lineHeight: 1.6, margin: 0 },
+  progressTrack: { height: 8, background: '#2d3048', borderRadius: 4, overflow: 'hidden' },
+  progressFill: { height: '100%', background: 'linear-gradient(90deg, #f7931a, #fbbf24)', borderRadius: 4, transition: 'width 0.8s ease' },
   section: { background: '#1a1d27', border: '1px solid #2d3048', borderRadius: 8, padding: 20 },
   sectionTitle: { fontSize: 11, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 },
   hint: { fontSize: 13, color: '#64748b', marginBottom: 14, lineHeight: 1.5 },
