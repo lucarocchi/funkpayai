@@ -326,13 +326,7 @@ ipcMain.handle('settings:save', (_, settings: Settings) => saveSettings(settings
 ipcMain.handle('app:relaunch', () => { app.relaunch(); app.exit(0) })
 ipcMain.handle('status', async () => {
   const settings = loadSettings()
-  let bitcoindRunning = false
-  try {
-    if (baseRpcGlobal) await baseRpcGlobal.ping()
-    bitcoindRunning = !!baseRpcGlobal
-  } catch {
-    bitcoindRunning = false
-  }
+  const bitcoindRunning = baseRpcGlobal ? await baseRpcGlobal.isAlive() : false
   return { bitcoind: bitcoindRunning, bitcoindStarted, mcp: walletApi !== null, mcpPort: settings.mcpPort, cliPath }
 })
 

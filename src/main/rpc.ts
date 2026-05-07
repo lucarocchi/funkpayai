@@ -79,6 +79,20 @@ export class BitcoinRpc {
     await this.call('ping')
   }
 
+  async isAlive(): Promise<boolean> {
+    try {
+      const res = await fetch(this.config.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Basic ' + Buffer.from(`${this.config.user}:${this.config.password}`).toString('base64') },
+        body: JSON.stringify({ jsonrpc: '1.0', id: 0, method: 'ping', params: [] }),
+        signal: AbortSignal.timeout(5000)
+      })
+      return res.status === 200 || res.status === 503
+    } catch {
+      return false
+    }
+  }
+
   withWallet(walletName: string): BitcoinRpc {
     const base = this.config.url.replace(/\/wallet\/[^/]+$/, '')
     return new BitcoinRpc({ ...this.config, url: `${base}/wallet/${walletName}` })

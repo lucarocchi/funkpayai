@@ -100,8 +100,14 @@ export class BitcoindManager {
 
   async isRpcReady(): Promise<boolean> {
     try {
-      await this.rpcCall('ping')
-      return true
+      const res = await fetch(`http://127.0.0.1:${this.rpcPort}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Basic ' + Buffer.from(`${this.rpcUser}:${this.rpcPassword}`).toString('base64') },
+        body: JSON.stringify({ jsonrpc: '1.0', id: 1, method: 'ping', params: [] }),
+        signal: AbortSignal.timeout(5000)
+      })
+      // 503 = work queue full during IBD — node IS running, just busy
+      return res.status === 200 || res.status === 503
     } catch {
       return false
     }
