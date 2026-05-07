@@ -34,18 +34,33 @@ export class BitcoindManager {
     const notifyCmd = process.platform === 'win32'
       ? `cmd /c echo %s >> "${this.notifyFile}"`
       : `/bin/sh -c 'echo %s >> "${this.notifyFile}"'`
-    const lines = [
+    const commonLines = [
       'server=1',
       'listen=0',
       `prune=${pruneMB}`,
       `rpcuser=${rpcUser}`,
       `rpcpassword=${rpcPassword}`,
-      'rpcbind=127.0.0.1',
-      'rpcallowip=127.0.0.1',
       `walletnotify=${notifyCmd}`
     ]
+
+    let lines: string[]
     if (network === 'testnet') {
-      lines.push('testnet=1', '[test]', 'rpcport=18332', 'port=18333')
+      lines = [
+        ...commonLines,
+        'testnet=1',
+        '',
+        '[test]',
+        'rpcbind=127.0.0.1',
+        'rpcallowip=127.0.0.1',
+        'rpcport=18332',
+        'port=18333'
+      ]
+    } else {
+      lines = [
+        ...commonLines,
+        'rpcbind=127.0.0.1',
+        'rpcallowip=127.0.0.1'
+      ]
     }
     writeFileSync(join(this.dataDir, 'bitcoin.conf'), lines.join('\n'))
   }

@@ -43,7 +43,7 @@ export default function Dashboard(): JSX.Element {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const pct = sync ? Math.round(sync.progress * 100) : 0
+  const pct = sync ? Math.round(sync.progress * 1000) / 10 : 0
   const isSyncing = status.bitcoind && (sync?.syncing ?? false)
   const isStarting = !status.bitcoind && status.bitcoindStarted
 
@@ -83,14 +83,16 @@ export default function Dashboard(): JSX.Element {
         <div style={styles.infoBox}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <div style={styles.infoTitle}>Syncing Bitcoin blockchain</div>
-            <span style={{ fontSize: 18, fontWeight: 700, color: '#f7931a' }}>{pct}%</span>
+            <span style={{ fontSize: 18, fontWeight: 700, color: '#f7931a' }}>{pct.toFixed(1)}%</span>
           </div>
           <div style={styles.progressTrack}>
-            <div style={{ ...styles.progressFill, width: `${pct}%` }} />
+            <div style={{ ...styles.progressFill, width: `${Math.min(pct, 100)}%` }} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, fontSize: 12, color: '#475569' }}>
-            <span>{sync.blocks.toLocaleString()} / {sync.headers.toLocaleString()} blocks</span>
-            <span>{pct < 50 ? 'Several hours remaining' : pct < 90 ? 'Getting closer…' : 'Almost done!'}</span>
+            <span style={{ fontFamily: 'monospace' }}>
+              {sync.blocks.toLocaleString()} / {sync.headers.toLocaleString()} blocks
+            </span>
+            <span>{pct < 10 ? 'Many hours remaining' : pct < 50 ? 'Several hours remaining' : pct < 90 ? 'Getting closer…' : 'Almost done!'}</span>
           </div>
           <p style={{ ...styles.infoText, marginTop: 12 }}>
             The wallet will be available as soon as sync completes.
