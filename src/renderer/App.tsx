@@ -19,6 +19,7 @@ export default function App(): JSX.Element {
   const [network, setNetwork] = useState<'mainnet' | 'testnet'>('mainnet')
 
   useEffect(() => {
+    document.getElementById('splash')?.remove()
     window.api.settings.load().then((s) => setNetwork(s.network ?? 'mainnet'))
     const onSave = (e: Event): void => setNetwork((e as CustomEvent).detail?.network ?? 'mainnet')
     window.addEventListener('settings-saved', onSave)
