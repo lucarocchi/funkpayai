@@ -90,7 +90,7 @@ export class BitcoinRpc {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Basic ' + Buffer.from(`${this.config.user}:${this.config.password}`).toString('base64') },
         body: JSON.stringify({ jsonrpc: '1.0', id: 0, method: 'ping', params: [] }),
-        signal: AbortSignal.timeout(5000)
+        signal: AbortSignal.timeout(15000)
       })
       if (res.status === 200) return 'online'
       if (res.status === 503) return 'busy'

@@ -78,7 +78,7 @@ export default function Dashboard(): JSX.Element {
             FunkPay needs a running Bitcoin Core node. Start one with:
           </p>
           <div style={{ marginTop: 10 }}>
-            <pre style={styles.cmdBlock}>{`"${status.bitcoindPath}" -datadir="${status.dataDir}" -daemon`}</pre>
+            <pre style={styles.cmdBlock}>{`"${status.bitcoindPath}" -datadir="${status.dataDir}"`}</pre>
           </div>
           <p style={{ ...styles.infoText, marginTop: 10 }}>
             Credentials are already pre-filled in <strong style={{ color: '#e2e8f0' }}>Settings</strong>.
