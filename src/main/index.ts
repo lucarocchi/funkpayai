@@ -30,6 +30,7 @@ let bitcoind: BitcoindManager | null = null
 let walletApi: WalletApiServer | null = null
 let rpcGlobal: BitcoinRpc | null = null
 let baseRpcGlobal: BitcoinRpc | null = null
+let lastSyncInfo: { blocks: number; headers: number; progress: number; syncing: boolean } | null = null
 let cliPath: string | null = null
 let bitcoindStarted = false
 
@@ -306,17 +307,18 @@ ipcMain.handle('payments:reverify', async (_, id: string) => {
 
 // IPC — node sync info
 ipcMain.handle('node:syncInfo', async () => {
-  if (!baseRpcGlobal) return null
+  if (!baseRpcGlobal) return lastSyncInfo
   try {
     const info = await baseRpcGlobal.getBlockchainInfo()
-    return {
+    lastSyncInfo = {
       blocks: info.blocks,
       headers: info.headers,
       progress: info.verificationprogress,
       syncing: info.initialblockdownload || info.verificationprogress < 0.9999
     }
+    return lastSyncInfo
   } catch {
-    return null
+    return lastSyncInfo
   }
 })
 
