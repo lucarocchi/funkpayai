@@ -44,14 +44,15 @@ export default function Dashboard(): JSX.Element {
   }
 
   const pct = sync ? Math.round(sync.progress * 1000) / 10 : 0
-  const isSyncing = status.bitcoind && (sync?.syncing ?? false)
+  // sync null while bitcoind is running = node busy (IBD work queue full) → still syncing
+  const isSyncing = status.bitcoind && (sync ? sync.syncing : true)
   const isStarting = !status.bitcoind && status.bitcoindStarted
 
   // Node card label and color
   let nodeLabel = 'Not running'
   let nodeRunning = false
   if (isStarting) { nodeLabel = 'Starting up…'; nodeRunning = false }
-  else if (isSyncing) { nodeLabel = `Syncing — ${pct}%`; nodeRunning = false }
+  else if (isSyncing) { nodeLabel = sync ? `Syncing — ${pct.toFixed(1)}%` : 'Syncing…'; nodeRunning = false }
   else if (status.bitcoind) { nodeLabel = 'Running'; nodeRunning = true }
 
   return (
