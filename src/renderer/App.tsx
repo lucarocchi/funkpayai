@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import Dashboard, { Status, SyncInfo } from './pages/Dashboard'
+import Dashboard from './pages/Dashboard'
 import Settings from './pages/Settings'
 import Wallet from './pages/Wallet'
 import Payments from './pages/Payments'
@@ -20,8 +20,6 @@ export default function App(): JSX.Element {
   const [appState, setAppState] = useState<AppState>('loading')
   const [page, setPage] = useState<Page>('dashboard')
   const [network, setNetwork] = useState<'mainnet' | 'testnet'>('mainnet')
-  const [status, setStatus] = useState<Status>({ bitcoind: false, bitcoindStarted: false, mcp: false, mcpPort: 3282, cliPath: null })
-  const [sync, setSync] = useState<SyncInfo | null>(null)
 
   useEffect(() => {
     window.api.install.getStatus().then((s) => {
@@ -34,19 +32,6 @@ export default function App(): JSX.Element {
     window.addEventListener('settings-saved', onSave)
     return () => window.removeEventListener('settings-saved', onSave)
   }, [])
-
-  useEffect(() => {
-    if (appState !== 'ready') return
-    const checkStatus = async (): Promise<void> => setStatus(await window.api.status())
-    const checkSync = async (): Promise<void> => {
-      const s = await window.api.node.syncInfo()
-      if (s !== null) setSync(s)
-    }
-    checkStatus(); checkSync()
-    const si = setInterval(checkStatus, 5000)
-    const sy = setInterval(checkSync, 3000)
-    return () => { clearInterval(si); clearInterval(sy) }
-  }, [appState])
 
   if (appState === 'loading') {
     return null
@@ -83,7 +68,7 @@ export default function App(): JSX.Element {
         </nav>
       </aside>
       <main style={styles.main}>
-        {page === 'dashboard' && <Dashboard status={status} sync={sync} />}
+        {page === 'dashboard' && <Dashboard />}
         {page === 'wallet' && <Wallet />}
         {page === 'payments' && <Payments />}
         {page === 'settings' && <Settings />}

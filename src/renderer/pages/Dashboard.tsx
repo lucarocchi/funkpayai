@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Copy, Check } from 'lucide-react'
 
-export interface Status {
+interface Status {
   bitcoind: boolean
   bitcoindStarted: boolean
   mcp: boolean
@@ -9,20 +9,29 @@ export interface Status {
   cliPath: string | null
 }
 
-export interface SyncInfo {
+interface SyncInfo {
   blocks: number
   headers: number
   progress: number
   syncing: boolean
 }
 
-interface Props {
-  status: Status
-  sync: SyncInfo | null
-}
-
-export default function Dashboard({ status, sync }: Props): JSX.Element {
+export default function Dashboard(): JSX.Element {
+  const [status, setStatus] = useState<Status>({ bitcoind: false, bitcoindStarted: false, mcp: false, mcpPort: 3282, cliPath: null })
+  const [sync, setSync] = useState<SyncInfo | null>(null)
   const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    const checkStatus = async (): Promise<void> => setStatus(await window.api.status())
+    const checkSync = async (): Promise<void> => {
+      const s = await window.api.node.syncInfo()
+      if (s !== null) setSync(s)
+    }
+    checkStatus(); checkSync()
+    const si = setInterval(checkStatus, 5000)
+    const sy = setInterval(checkSync, 3000)
+    return () => { clearInterval(si); clearInterval(sy) }
+  }, [])
 
   const stdioConfig = status.cliPath
     ? JSON.stringify({ mcpServers: { funkpayai: { command: 'node', args: [status.cliPath] } } }, null, 2)
