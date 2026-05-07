@@ -40,7 +40,9 @@ export class BitcoindManager {
       `prune=${pruneMB}`,
       `rpcuser=${rpcUser}`,
       `rpcpassword=${rpcPassword}`,
-      `walletnotify=${notifyCmd}`
+      `walletnotify=${notifyCmd}`,
+      'rpcworkqueue=64',
+      'rpcthreads=4'
     ]
 
     let lines: string[]
