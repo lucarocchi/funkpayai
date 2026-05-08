@@ -55,7 +55,9 @@ const SendSchema = z.object({
 const InvoiceSchema = z.object({
   merchant_url: z.string().url().max(256),
   amount_sat: z.number().int().positive().max(SAT_MAX).optional(),
-  label: z.string().max(256).optional()
+  label: z.string().max(256).optional(),
+  amount_fiat: z.number().positive().optional(),
+  currency: z.string().max(10).optional(),
 })
 
 // F-09: payment_id validated as safe alphanumeric before URL construction
@@ -315,13 +317,15 @@ export class WalletApiServer {
 
     if (method === 'POST' && path === '/api/invoice') {
       // F-15: validate + F-07: merchant allowlist
-      const { merchant_url, amount_sat, label } = InvoiceSchema.parse(params)
+      const { merchant_url, amount_sat, label, amount_fiat, currency } = InvoiceSchema.parse(params)
       assertTrustedMerchant(merchant_url)
       const settings = loadSettings()
       const base = merchant_url.replace(/\/$/, '')
       const body: Record<string, unknown> = {}
       if (amount_sat) body.amount_sat = amount_sat
       if (label) body.label = label
+      if (amount_fiat) body.amount_fiat = amount_fiat
+      if (currency) body.currency = currency
       const { shipping, billing } = settings
       if (shipping?.address1) body.shipping = shipping
       if (billing && (billing.sameAsShipping ? shipping?.address1 : billing.address1)) body.billing = billing
@@ -331,6 +335,9 @@ export class WalletApiServer {
         payment_id: data.payment_id as string,
         address: data.address as string,
         amount_sat: (data.amount_sat as number) ?? amount_sat ?? 0,
+        amount_fiat: (data.amount_fiat as number) ?? amount_fiat ?? null,
+        currency: (data.currency as string) ?? currency ?? null,
+        exchange_rate: (data.exchange_rate as number) ?? null,
         txid: null, on_chain_confs: 0, merchant_status: 'pending', needs_attention: false
       })
       return data

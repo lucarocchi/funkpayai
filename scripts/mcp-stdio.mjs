@@ -128,13 +128,15 @@ const TOOLS = [
   },
   {
     name: 'create_invoice',
-    description: 'Create a FunkPay payment invoice on a merchant server. Automatically attaches shipping/billing info from Settings.',
+    description: 'Create a FunkPay payment invoice on a merchant server. Automatically attaches shipping/billing info from Settings. Pass amount_fiat + currency when the user specifies a fiat price (e.g. "pay €25") so the exchange rate is recorded for accounting.',
     inputSchema: {
       type: 'object',
       properties: {
         merchant_url: { type: 'string', description: 'Base URL of the btcfunkpay merchant server' },
         amount_sat: { type: 'number', description: 'Amount in satoshis (omit for open amount)' },
-        label: { type: 'string', description: 'Order reference or description' }
+        label: { type: 'string', description: 'Order reference or description' },
+        amount_fiat: { type: 'number', description: 'Amount in fiat currency (for fiscal records, e.g. 25.00)' },
+        currency: { type: 'string', description: 'ISO fiat currency code, e.g. EUR, USD, GBP' }
       },
       required: ['merchant_url']
     }

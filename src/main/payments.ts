@@ -13,6 +13,9 @@ export interface PaymentRecord {
   payment_id: string | null
   address: string
   amount_sat: number
+  amount_fiat: number | null
+  currency: string | null
+  exchange_rate: number | null
   txid: string | null
   on_chain_confs: number
   merchant_status: string | null  // pending/detected/confirmed/expired/overpaid/unknown
