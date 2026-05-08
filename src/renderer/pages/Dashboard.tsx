@@ -99,6 +99,17 @@ export default function Dashboard(): JSX.Element {
             If you use different ones, update them there.
             The wallet connects automatically once the node responds.
           </p>
+          <p style={{ ...styles.infoText, marginTop: 8 }}>
+            Don't have Bitcoin Core installed?{' '}
+            <a
+              href="https://bitcoin.org/en/full-node"
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: '#f7931a' }}
+            >
+              See the official setup guide →
+            </a>
+          </p>
         </div>
       )}
 
