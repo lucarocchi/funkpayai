@@ -12,9 +12,26 @@
 import { createInterface } from 'readline'
 import http from 'http'
 import { spawn } from 'child_process'
+import { readFileSync } from 'fs'
+import { join } from 'path'
+import { homedir } from 'os'
 
-const PORT = parseInt(process.env.FUNKPAY_PORT || '3282', 10)
+const PORT = 3282
 const API = `http://127.0.0.1:${PORT}/api`
+
+// F-01: load shared secret — written by the app at ~/.funkpay/api-token
+let API_TOKEN = ''
+try {
+  API_TOKEN = readFileSync(join(homedir(), '.funkpay', 'api-token'), 'utf-8').trim()
+} catch {
+  process.stderr.write('[funkpay-mcp] Warning: API token not found — launch FunkPay MCP first\n')
+}
+
+// F-29: load app executable path written by the app at startup (more reliable than display name)
+let APP_EXE_PATH = ''
+try {
+  APP_EXE_PATH = readFileSync(join(homedir(), '.funkpay', 'app-path'), 'utf-8').trim()
+} catch { /* fall back to name-based launch */ }
 
 // ── Auto-launch ───────────────────────────────────────────────────────────────
 
@@ -24,11 +41,20 @@ async function ensureAppRunning() {
   process.stderr.write('[funkpay-mcp] App not running — launching FunkPay MCP...\n')
   try {
     if (process.platform === 'darwin') {
-      spawn('open', ['-a', 'FunkPay MCP'], { detached: true, stdio: 'ignore' }).unref()
+      // F-29: prefer the exe path written by the app (stable across renames/installs)
+      // process.execPath is inside the .app bundle; extract the .app for `open`
+      if (APP_EXE_PATH && APP_EXE_PATH.includes('.app/')) {
+        const appBundle = APP_EXE_PATH.split('.app/')[0] + '.app'
+        spawn('open', [appBundle], { detached: true, stdio: 'ignore' }).unref()
+      } else {
+        spawn('open', ['-a', 'FunkPay MCP'], { detached: true, stdio: 'ignore' }).unref()
+      }
     } else if (process.platform === 'win32') {
-      spawn('cmd', ['/c', 'start', '', 'FunkPay MCP.exe'], { detached: true, shell: true, stdio: 'ignore' }).unref()
+      const target = APP_EXE_PATH || 'FunkPay MCP.exe'
+      spawn(target, [], { detached: true, stdio: 'ignore' }).unref()
     } else {
-      spawn('funkpaymcp', [], { detached: true, stdio: 'ignore' }).unref()
+      const target = APP_EXE_PATH || 'funkpaymcp'
+      spawn(target, [], { detached: true, stdio: 'ignore' }).unref()
     }
   } catch {
     process.stderr.write('[funkpay-mcp] Could not launch app — please open FunkPay MCP manually.\n')
@@ -157,8 +183,13 @@ const TOOLS = [
 // ── Tool dispatch ─────────────────────────────────────────────────────────────
 
 async function callTool(name, args) {
-  // If app not reachable, try to launch it before dispatching
   if (!await isReady()) await ensureAppRunning()
+  // Re-read token on every call — handles the case where the proxy started
+  // before the app had written the token file (e.g. first launch via auto-launch).
+  try {
+    const t = readFileSync(join(homedir(), '.funkpay', 'api-token'), 'utf-8').trim()
+    if (t) API_TOKEN = t
+  } catch { /* keep whatever we loaded at startup */ }
   switch (name) {
     case 'get_balance': {
       const { sat } = await apiPost('/balance', {})
@@ -196,30 +227,36 @@ async function callTool(name, args) {
     }
 
     case 'wait_for_payment': {
+      // F-11: register the wait in the app's persistent background loop, then poll
+      // the app instead of the merchant directly. If the proxy restarts, re-registering
+      // is idempotent — the app keeps polling and the ledger retains the latest status.
       const { merchant_url, payment_id, timeout_seconds = 1800 } = args
-      const settings = await apiGet('/settings')
-      const required = settings.confirmationsRequired ?? 0
+      try {
+        await apiPost('/wait-payment', { merchant_url, payment_id, timeout_seconds })
+      } catch (e) {
+        return err(`Failed to register payment wait: ${e.message}`)
+      }
+      const config = await apiGet('/config')
+      const required = config.confirmationsRequired ?? 0
       const deadline = Date.now() + timeout_seconds * 1000
       const POLL = 15_000
 
       while (Date.now() < deadline) {
+        await sleep(POLL)
         try {
-          const inv = await apiPost('/invoice-status', { merchant_url, payment_id })
+          const inv = await apiPost('/wait-status', { payment_id })
           const status = inv.status
           const confs = inv.confirmations ?? 0
-
           const done = required === 0
             ? ['detected', 'confirmed', 'overpaid'].includes(status)
             : ['confirmed', 'overpaid'].includes(status) && confs >= required
-
           if (done) return ok(JSON.stringify({ payment_id, status, confirmations: confs, received_sat: inv.received_sat, txid: inv.txid }, null, 2))
           if (status === 'expired') return err(`Invoice ${payment_id} expired before payment was received.`)
-        } catch { /* merchant unreachable, keep polling */ }
-
-        await sleep(POLL)
+          if (!inv.still_waiting && !done) return err(`Server-side wait expired. Check the Payments tab in FunkPay MCP for current status.`)
+        } catch { /* app unreachable — keep polling */ }
       }
 
-      return err(`Timeout: payment not confirmed within ${timeout_seconds}s. Use get_invoice_status to retry or check the Payments tab in FunkPay MCP.`)
+      return err(`Timeout: payment not confirmed within ${timeout_seconds}s. Check the Payments tab in FunkPay MCP.`)
     }
 
     case 'list_merchants': {
@@ -330,6 +367,7 @@ function httpReq(method, url, body) {
         method,
         headers: {
           'Content-Type': 'application/json',
+          'X-FunkPay-Token': API_TOKEN,
           ...(payload ? { 'Content-Length': Buffer.byteLength(payload) } : {})
         }
       },

@@ -1,12 +1,13 @@
-import { app, BrowserWindow, ipcMain, dialog, nativeTheme } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, nativeTheme, session } from 'electron'
 import { join } from 'path'
 import { homedir } from 'os'
-import { readdirSync, mkdirSync, rmSync, existsSync, copyFileSync, chmodSync } from 'fs'
+import { readdirSync, mkdirSync, rmSync, existsSync, copyFileSync, chmodSync, writeFileSync } from 'fs'
 import { is } from '@electron-toolkit/utils'
 import { BitcoinRpc } from './rpc'
 import { WalletApiServer } from './wallet-api'
 import { loadSettings, saveSettings, Settings } from './settings'
 import { getLedger } from './payments'
+import { loadOrCreateToken } from './api-token'
 import { dark, light } from '../shared/theme'
 
 function themeBg(): string {
@@ -25,25 +26,35 @@ if (process.platform === 'darwin') {
 let mainWindow: BrowserWindow | null = null
 let walletApi: WalletApiServer | null = null
 let cliPath: string | null = null
+let cliInstallFailed = false
 let rpcGlobal: BitcoinRpc | null = null
 let baseRpcGlobal: BitcoinRpc | null = null
 let lastSyncInfo: { blocks: number; headers: number; progress: number; syncing: boolean } | null = null
+let connectionExhausted = false
 
 const MAX_BACKUPS = 30
 
 function installCli(): void {
   try {
+    const funkpayDir = join(app.getPath('home'), '.funkpay')
+    mkdirSync(funkpayDir, { recursive: true })
+
     const src = is.dev
       ? join(__dirname, '../../scripts/mcp-stdio.mjs')
       : join(process.resourcesPath, 'mcp-stdio.mjs')
     if (!existsSync(src)) return
-    const dest = join(app.getPath('home'), '.funkpay', 'mcp-stdio.mjs')
-    mkdirSync(join(app.getPath('home'), '.funkpay'), { recursive: true })
+    const dest = join(funkpayDir, 'mcp-stdio.mjs')
     copyFileSync(src, dest)
     chmodSync(dest, 0o755)
     cliPath = dest
+
+    // F-29: write executable path so proxy can auto-launch reliably (not by display name)
+    const appPathFile = join(funkpayDir, 'app-path')
+    writeFileSync(appPathFile, process.execPath, { mode: 0o600 })
+
     console.log(`[cli] installed stdio proxy at ${dest}`)
   } catch (e) {
+    cliInstallFailed = true
     console.error('[cli] install failed:', e)
   }
 }
@@ -81,7 +92,8 @@ function createWindow(): void {
     show: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: true,
+      contextIsolation: true
     }
   })
 
@@ -111,7 +123,9 @@ export async function startServices(): Promise<void> {
     password: settings.rpcPassword
   })
 
-  walletApi = new WalletApiServer(async (address, amountSat) => {
+  const apiToken = loadOrCreateToken()
+
+  walletApi = new WalletApiServer(apiToken, async (address, amountSat) => {
     const result = await dialog.showMessageBox(mainWindow!, {
       type: 'question',
       buttons: ['Approve', 'Reject'],
@@ -134,12 +148,14 @@ export async function startServices(): Promise<void> {
         const rpc = baseRpcGlobal!.withWallet('funkpay')
         rpcGlobal = rpc
         walletApi!.setRpc(rpc)
+        connectionExhausted = false
         console.log('[wallet] connected to Bitcoin node')
         return
       } catch {
         await new Promise((r) => setTimeout(r, 5000))
       }
     }
+    connectionExhausted = true
     console.warn('[wallet] could not connect to Bitcoin node after 15 minutes')
   }
   connectWallet().catch(console.error)
@@ -156,30 +172,39 @@ ipcMain.handle('wallet:getNewAddress', async () => {
   return rpcGlobal.getNewAddress()
 })
 
+// F-04: mutex — prevent concurrent payments triggered from the UI
+let sendIpcInFlight = false
+
 ipcMain.handle('wallet:send', async (_, address: string, amountSat: number, subtractFee = false) => {
   if (!rpcGlobal) throw new Error('Node not ready')
-  const settings = loadSettings()
-  const needsApproval =
-    settings.approvalMode === 'always' ||
-    (settings.approvalMode === 'threshold' && amountSat >= settings.approvalThresholdSat)
+  if (sendIpcInFlight) throw new Error('A payment is already in progress — wait for it to complete')
+  sendIpcInFlight = true
+  try {
+    const settings = loadSettings()
+    const needsApproval =
+      settings.approvalMode === 'always' ||
+      (settings.approvalMode === 'threshold' && amountSat >= settings.approvalThresholdSat)
 
-  if (needsApproval && mainWindow) {
-    const detail = subtractFee
-      ? `To: ${address}\nAmount: ${amountSat.toLocaleString()} sat (fee deducted from amount)`
-      : `To: ${address}\nAmount: ${amountSat.toLocaleString()} sat`
-    const { response } = await dialog.showMessageBox(mainWindow, {
-      type: 'question',
-      buttons: ['Approve', 'Reject'],
-      defaultId: 1,
-      cancelId: 1,
-      title: 'Confirm Payment',
-      message: 'Send Bitcoin?',
-      detail
-    })
-    if (response !== 0) throw new Error('Payment rejected by user')
+    if (needsApproval && mainWindow) {
+      const detail = subtractFee
+        ? `To: ${address}\nAmount: ${amountSat.toLocaleString()} sat (fee deducted from amount)`
+        : `To: ${address}\nAmount: ${amountSat.toLocaleString()} sat`
+      const { response } = await dialog.showMessageBox(mainWindow, {
+        type: 'question',
+        buttons: ['Approve', 'Reject'],
+        defaultId: 1,
+        cancelId: 1,
+        title: 'Confirm Payment',
+        message: 'Send Bitcoin?',
+        detail
+      })
+      if (response !== 0) throw new Error('Payment rejected by user')
+    }
+
+    return await rpcGlobal.sendToAddress(address, amountSat, undefined, subtractFee)
+  } finally {
+    sendIpcInFlight = false
   }
-
-  return rpcGlobal.sendToAddress(address, amountSat, undefined, subtractFee)
 })
 
 ipcMain.handle('wallet:listTransactions', async (_, limit = 20) => {
@@ -206,6 +231,10 @@ ipcMain.handle('payments:reverify', async (_, id: string) => {
   }
 
   if (record.merchant_url && record.payment_id) {
+    // F-09: reject malformed payment_id stored by a malicious merchant before URL construction
+    if (!/^[a-zA-Z0-9_-]{1,128}$/.test(record.payment_id)) {
+      result.merchant_error = 'Stored payment_id has invalid format — reverify skipped'
+    } else
     try {
       const base = record.merchant_url.replace(/\/$/, '')
       const res = await fetch(`${base}/invoices/${record.payment_id}`)
@@ -249,6 +278,11 @@ ipcMain.handle('node:syncInfo', async () => {
 
 // IPC — runtime
 ipcMain.handle('settings:load', () => loadSettings())
+// F-05: test RPC credentials without saving them first
+ipcMain.handle('settings:test', async (_, url: string, user: string, password: string) => {
+  const rpc = new BitcoinRpc({ url, user, password })
+  return rpc.getNodeStatus()
+})
 ipcMain.handle('settings:save', async (_, settings: Settings) => {
   saveSettings(settings)
   // Reconnect with new RPC settings
@@ -258,8 +292,9 @@ ipcMain.handle('settings:save', async (_, settings: Settings) => {
   baseRpcGlobal = new BitcoinRpc({ url: rpcUrl, user: settings.rpcUser, password: settings.rpcPassword })
   rpcGlobal = null
   lastSyncInfo = null
+  connectionExhausted = false
   // reconnect wallet in background
-  const connectWallet = async (): Promise<void> => {
+  const reconnectWallet = async (): Promise<void> => {
     for (let i = 0; i < 180; i++) {
       try {
         await baseRpcGlobal!.ping()
@@ -267,16 +302,23 @@ ipcMain.handle('settings:save', async (_, settings: Settings) => {
         const rpc = baseRpcGlobal!.withWallet('funkpay')
         rpcGlobal = rpc
         walletApi?.setRpc(rpc)
+        connectionExhausted = false
         console.log('[wallet] reconnected after settings change')
         return
       } catch {
         await new Promise((r) => setTimeout(r, 5000))
       }
     }
+    connectionExhausted = true
+    console.warn('[wallet] could not reconnect after settings change')
   }
-  connectWallet().catch(console.error)
+  reconnectWallet().catch(console.error)
 })
-ipcMain.handle('app:relaunch', () => { app.relaunch(); app.exit(0) })
+// F-27: only the main window may trigger a relaunch
+ipcMain.handle('app:relaunch', (event) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) return
+  app.relaunch(); app.exit(0)
+})
 ipcMain.handle('status', async () => {
   const settings = loadSettings()
   const nodeStatus = baseRpcGlobal ? await baseRpcGlobal.getNodeStatus() : 'offline'
@@ -284,10 +326,24 @@ ipcMain.handle('status', async () => {
   const dataDirName = network === 'testnet' ? 'bitcoin-testnet' : 'bitcoin'
   const dataDir = join(app.getPath('userData'), dataDirName)
   const bitcoindPath = join(app.getPath('userData'), 'bitcoin-core', 'bitcoind')
-  return { nodeStatus, mcp: walletApi !== null, mcpPort: settings.mcpPort, cliPath, bitcoindPath, dataDir, network }
+  return { nodeStatus, mcp: walletApi !== null, mcpPort: settings.mcpPort, cliPath, cliInstallFailed, bitcoindPath, dataDir, network, connectionExhausted }
 })
 
 app.whenReady().then(async () => {
+  // F-06: Content Security Policy — only in production; dev mode needs WebSocket for Vite HMR
+  if (!is.dev) {
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': [
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'none'"
+          ]
+        }
+      })
+    })
+  }
+
   installCli()
   createWindow()
   startServices().catch((e) => console.error('[startup] startServices failed:', e))

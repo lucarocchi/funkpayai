@@ -4,7 +4,7 @@
 
 **FunkPayAI** è un'app Electron desktop cross-platform (Mac/Win/Linux) che funge da **Bitcoin wallet per AI agents**.
 
-Espone un **MCP server HTTP** su `http://127.0.0.1:3282/mcp` che Claude Code (e altri agent) usano per pagare in Bitcoin in autonomia. L'utente configura il wallet una volta, l'agent opera nei limiti impostati.
+Espone un **MCP server stdio** (`~/.funkpay/mcp-stdio.mjs`) che Claude Code (e altri agent) usano per pagare in Bitcoin in autonomia. Il proxy stdio comunica con la REST API su `http://127.0.0.1:3282/api`. L'utente configura il wallet una volta, l'agent opera nei limiti impostati.
 
 È il componente **lato payer** dell'ecosistema FunkPay.
 
@@ -91,7 +91,7 @@ npm run package      # genera installer (dmg/exe/AppImage)
 
 **Claude Code config:**
 ```json
-{ "mcpServers": { "funkpayai": { "url": "http://127.0.0.1:3282/mcp" } } }
+{ "mcpServers": { "funkpayai": { "command": "node", "args": ["~/.funkpay/mcp-stdio.mjs"] } } }
 ```
 
 ## Approval Policy

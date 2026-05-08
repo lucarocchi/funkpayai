@@ -6,7 +6,8 @@ contextBridge.exposeInMainWorld('api', {
   },
   settings: {
     load: () => ipcRenderer.invoke('settings:load'),
-    save: (s: unknown) => ipcRenderer.invoke('settings:save', s)
+    save: (s: unknown) => ipcRenderer.invoke('settings:save', s),
+    test: (url: string, user: string, password: string) => ipcRenderer.invoke('settings:test', url, user, password)
   },
   wallet: {
     getBalance:       () => ipcRenderer.invoke('wallet:getBalance'),

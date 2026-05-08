@@ -6,9 +6,11 @@ interface Status {
   mcp: boolean
   mcpPort: number
   cliPath: string | null
+  cliInstallFailed: boolean
   bitcoindPath: string
   dataDir: string
   network: string
+  connectionExhausted: boolean
 }
 
 interface SyncInfo {
@@ -19,7 +21,7 @@ interface SyncInfo {
 }
 
 export default function Dashboard(): JSX.Element {
-  const [status, setStatus] = useState<Status>({ nodeStatus: 'offline', mcp: false, mcpPort: 3282, cliPath: null, bitcoindPath: '', dataDir: '', network: 'mainnet' })
+  const [status, setStatus] = useState<Status>({ nodeStatus: 'offline', mcp: false, mcpPort: 3282, cliPath: null, cliInstallFailed: false, bitcoindPath: '', dataDir: '', network: 'mainnet', connectionExhausted: false })
   const [sync, setSync] = useState<SyncInfo | null>(null)
   const [copied, setCopied] = useState(false)
   const [network, setNetwork] = useState<'mainnet' | 'testnet'>('mainnet')
@@ -55,7 +57,7 @@ export default function Dashboard(): JSX.Element {
   const nodeUp = status.nodeStatus !== 'offline'
   const isSyncing = nodeUp && (sync ? sync.syncing : true)
 
-  let nodeLabel = 'Not connected'
+  let nodeLabel = status.connectionExhausted ? 'Connection failed' : 'Not connected'
   let nodeRunning = false
   if (status.nodeStatus === 'busy') { nodeLabel = sync ? `Syncing — ${pct.toFixed(1)}%` : 'Syncing…'; nodeRunning = false }
   else if (isSyncing) { nodeLabel = sync ? `Syncing — ${pct.toFixed(1)}%` : 'Syncing…'; nodeRunning = false }
@@ -70,8 +72,20 @@ export default function Dashboard(): JSX.Element {
         <Card title="Wallet API" running={status.mcp} label={status.mcp ? `Port ${status.mcpPort}` : 'Stopped'} />
       </div>
 
+      {/* Retry loop exhausted — 15 min with no response */}
+      {status.connectionExhausted && status.nodeStatus === 'offline' && (
+        <div style={{ ...styles.infoBox, borderColor: '#ef444433', marginBottom: 16 }}>
+          <div style={{ ...styles.infoTitle, color: '#ef4444' }}>Connection failed after 15 minutes</div>
+          <p style={styles.infoText}>
+            FunkPay tried to connect to your Bitcoin node for 15 minutes and got no response.
+            Check that bitcoind is running and your RPC credentials in <strong style={{ color: '#e2e8f0' }}>Settings</strong> are correct,
+            then save Settings to retry.
+          </p>
+        </div>
+      )}
+
       {/* Node offline — setup instructions */}
-      {status.nodeStatus === 'offline' && (
+      {status.nodeStatus === 'offline' && !status.connectionExhausted && (
         <div style={{ ...styles.infoBox, borderColor: '#3d4068', marginBottom: 16 }}>
           <div style={styles.infoTitle}>Bitcoin node not connected</div>
           <p style={styles.infoText}>
@@ -136,7 +150,12 @@ export default function Dashboard(): JSX.Element {
             }
           </button>
         </div>
-        {!status.cliPath && (
+        {status.cliInstallFailed && (
+          <p style={{ ...styles.warn, color: '#ef4444' }}>
+            Proxy installation failed — check app permissions or reinstall. Tool calls will not work.
+          </p>
+        )}
+        {!status.cliPath && !status.cliInstallFailed && (
           <p style={styles.warn}>⚠ Proxy not installed — restart the app to fix this.</p>
         )}
       </div>

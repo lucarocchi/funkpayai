@@ -54,16 +54,16 @@ export default function Settings(): JSX.Element {
     setTimeout(() => setSaved(false), 2000)
   }
 
+  // F-05: test credentials without saving — no data loss if credentials are wrong
   const testConnection = async (): Promise<void> => {
     if (!s) return
     setTestResult('testing')
-    // Save first so main process reconnects, then check status
-    await window.api.settings.save(s)
-    window.dispatchEvent(new CustomEvent('settings-saved', { detail: s }))
-    // Give background reconnect loop a moment to try
-    await new Promise((r) => setTimeout(r, 1500))
-    const status = await window.api.status()
-    setTestResult(status.nodeStatus !== 'offline' ? 'ok' : 'fail')
+    try {
+      const nodeStatus = await window.api.settings.test(s.rpcUrl, s.rpcUser, s.rpcPassword)
+      setTestResult(nodeStatus !== 'offline' ? 'ok' : 'fail')
+    } catch {
+      setTestResult('fail')
+    }
     setTimeout(() => setTestResult('idle'), 4000)
   }
 

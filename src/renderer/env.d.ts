@@ -6,6 +6,7 @@ interface Window {
     settings: {
       load: () => Promise<import('../main/settings').Settings>
       save: (s: import('../main/settings').Settings) => Promise<void>
+      test: (url: string, user: string, password: string) => Promise<'offline' | 'busy' | 'online'>
     }
     wallet: {
       getBalance:       () => Promise<number>
@@ -17,7 +18,7 @@ interface Window {
       list:     () => Promise<import('../main/payments').PaymentRecord[]>
       reverify: (id: string) => Promise<Record<string, unknown>>
     }
-    status: () => Promise<{ nodeStatus: 'offline' | 'busy' | 'online'; mcp: boolean; mcpPort: number; cliPath: string | null; bitcoindPath: string; dataDir: string; network: string }>
+    status: () => Promise<{ nodeStatus: 'offline' | 'busy' | 'online'; mcp: boolean; mcpPort: number; cliPath: string | null; cliInstallFailed: boolean; bitcoindPath: string; dataDir: string; network: string; connectionExhausted: boolean }>
     app: {
       relaunch: () => Promise<void>
     }

@@ -1,7 +1,10 @@
 import { app } from 'electron'
 import { join } from 'path'
-import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { readFileSync, existsSync } from 'fs'
+import { writeFile } from 'fs/promises'
 import { randomUUID } from 'crypto'
+
+const MAX_RECORDS = 500
 
 export interface PaymentRecord {
   id: string
@@ -36,7 +39,10 @@ export class PaymentLedger {
   }
 
   private save(): void {
-    writeFileSync(this.filePath, JSON.stringify(this.records, null, 2))
+    // F-14: restrict permissions — financial ledger contains addresses and txids
+    // F-17: non-blocking write — errors logged, never thrown into callers
+    writeFile(this.filePath, JSON.stringify(this.records, null, 2), { mode: 0o600 })
+      .catch((e) => console.error('[ledger] save failed:', e))
   }
 
   add(data: Omit<PaymentRecord, 'id' | 'created_at' | 'last_checked'>): PaymentRecord {
@@ -47,6 +53,7 @@ export class PaymentLedger {
       ...data
     }
     this.records.unshift(record)
+    if (this.records.length > MAX_RECORDS) this.records.splice(MAX_RECORDS)
     this.save()
     return record
   }

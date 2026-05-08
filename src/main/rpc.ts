@@ -12,7 +12,8 @@ export class BitcoinRpc {
     this.config = config
   }
 
-  async call<T>(method: string, params: unknown[] = []): Promise<T> {
+  // F-10: default 30s timeout — prevents hanging the Electron main process
+  async call<T>(method: string, params: unknown[] = [], timeoutMs = 30_000): Promise<T> {
     const id = ++this.idCounter
     const res = await fetch(this.config.url, {
       method: 'POST',
@@ -20,7 +21,8 @@ export class BitcoinRpc {
         'Content-Type': 'application/json',
         Authorization: 'Basic ' + Buffer.from(`${this.config.user}:${this.config.password}`).toString('base64')
       },
-      body: JSON.stringify({ jsonrpc: '1.0', id, method, params })
+      body: JSON.stringify({ jsonrpc: '1.0', id, method, params }),
+      signal: AbortSignal.timeout(timeoutMs)
     })
 
     const text = await res.text()
@@ -50,7 +52,8 @@ export class BitcoinRpc {
 
   async sendToAddress(address: string, amountSat: number, comment?: string, subtractFee = false): Promise<string> {
     const btc = amountSat / 1e8
-    return this.call<string>('sendtoaddress', [address, btc, comment ?? '', '', subtractFee])
+    // 60s — broadcast can be slow under mempool congestion
+    return this.call<string>('sendtoaddress', [address, btc, comment ?? '', '', subtractFee], 60_000)
   }
 
   async getTransaction(txid: string): Promise<{
@@ -101,8 +104,9 @@ export class BitcoinRpc {
   }
 
   withWallet(walletName: string): BitcoinRpc {
-    const base = this.config.url.replace(/\/wallet\/[^/]+$/, '')
-    return new BitcoinRpc({ ...this.config, url: `${base}/wallet/${walletName}` })
+    const parsed = new URL(this.config.url)
+    parsed.pathname = `/wallet/${walletName}`
+    return new BitcoinRpc({ ...this.config, url: parsed.toString() })
   }
 
   async ensureWallet(walletName: string): Promise<void> {
@@ -110,10 +114,12 @@ export class BitcoinRpc {
       await this.call('createwallet', [walletName])
     } catch (e: unknown) {
       const code = (e as { code?: number }).code
-      // -4 = wallet file already exists on disk → need to load it
       // -35 = already loaded → we're good
       if (code === -35) return
-      if (code === -4 || (e instanceof Error && e.message.toLowerCase().includes('already'))) {
+      // -4 + "already" in message = wallet file exists on disk but not loaded → loadwallet
+      // Other -4 errors (e.g. verification failed) are real — re-throw
+      const msg = e instanceof Error ? e.message.toLowerCase() : ''
+      if (code === -4 && msg.includes('already')) {
         try {
           await this.call('loadwallet', [walletName])
         } catch (le: unknown) {

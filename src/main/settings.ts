@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, chmodSync } from 'fs'
 import { join } from 'path'
 
 export type Network = 'mainnet' | 'testnet'
@@ -69,6 +69,8 @@ export function loadSettings(): Settings {
   const path = settingsPath()
   if (!existsSync(path)) return { ...DEFAULTS }
   try {
+    // F-13: harden permissions on existing files (idempotent)
+    try { chmodSync(path, 0o600) } catch { /* ignore on Windows */ }
     const saved = JSON.parse(readFileSync(path, 'utf-8'))
     return {
       ...DEFAULTS,
@@ -83,5 +85,6 @@ export function loadSettings(): Settings {
 }
 
 export function saveSettings(settings: Settings): void {
-  writeFileSync(settingsPath(), JSON.stringify(settings, null, 2))
+  // F-13: restrict read permissions — prevents other users from reading RPC credentials
+  writeFileSync(settingsPath(), JSON.stringify(settings, null, 2), { mode: 0o600 })
 }
