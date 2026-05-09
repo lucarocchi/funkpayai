@@ -6,6 +6,18 @@ Your keys, your node, your backup. FunkPay MCP never connects to external server
 
 > **Want to try it first?** Switch to **testnet** in Settings — test BTC has no value and you can get it from a faucet in seconds.
 
+### What the agent can do
+
+Give your AI agent a task like *"buy this from shop.example.com"* and it handles the full flow autonomously:
+
+1. **Discovers** the merchant's FunkPay server from the domain
+2. **Creates an invoice** — gets a Bitcoin address and amount
+3. **Sends the payment** on-chain via your wallet
+4. **Waits for confirmation** — polls until the merchant reports `detected` or `confirmed`
+5. **Returns a receipt** with txid, amount, and payment status
+
+No copy-pasting addresses, no manual transfers, no browser. The agent completes the purchase end-to-end while you stay in control through the approval policy.
+
 ---
 
 FunkPay MCP has two components that work together:
