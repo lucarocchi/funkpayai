@@ -161,10 +161,22 @@ const TOOLS = [
       type: 'object',
       properties: {
         merchant_url: { type: 'string', description: 'Base URL of the btcfunkpay merchant server' },
-        amount_sat: { type: 'number', description: 'Amount in satoshis (omit for open amount)' },
+        amount_sat: { type: 'number', description: 'Amount in satoshis (omit when using sku)' },
         label: { type: 'string', description: 'Order reference or description' },
+        sku: { type: 'string', description: 'Product SKU — the merchant resolves the price automatically' },
         amount_fiat: { type: 'number', description: 'Amount in fiat currency (for fiscal records, e.g. 25.00)' },
         currency: { type: 'string', description: 'ISO fiat currency code, e.g. EUR, USD, GBP' }
+      },
+      required: ['merchant_url']
+    }
+  },
+  {
+    name: 'list_products',
+    description: 'List products available on a FunkPay merchant server',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        merchant_url: { type: 'string', description: 'Base URL of the btcfunkpay merchant server' }
       },
       required: ['merchant_url']
     }
@@ -296,6 +308,11 @@ async function callTool(name, args) {
       }
 
       return err(`Timeout: payment not confirmed within ${timeout_seconds}s. Check the Payments tab in FunkPay MCP.`)
+    }
+
+    case 'list_products': {
+      const data = await apiPost('/products', { merchant_url: args.merchant_url })
+      return ok(JSON.stringify(data, null, 2))
     }
 
     case 'list_merchants': {

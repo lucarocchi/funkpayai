@@ -56,8 +56,13 @@ const InvoiceSchema = z.object({
   merchant_url: z.string().url().max(256),
   amount_sat: z.number().int().positive().max(SAT_MAX).optional(),
   label: z.string().max(256).optional(),
+  sku: z.string().max(32).optional(),
   amount_fiat: z.number().positive().optional(),
   currency: z.string().max(10).optional(),
+})
+
+const ProductsSchema = z.object({
+  merchant_url: z.string().url().max(256)
 })
 
 // F-09: payment_id validated as safe alphanumeric before URL construction
@@ -321,11 +326,12 @@ export class WalletApiServer {
 
     if (method === 'POST' && path === '/api/invoice') {
       // F-15: validate + F-07: merchant allowlist
-      const { merchant_url, amount_sat, label, amount_fiat, currency } = InvoiceSchema.parse(params)
+      const { merchant_url, amount_sat, label, sku, amount_fiat, currency } = InvoiceSchema.parse(params)
       assertTrustedMerchant(merchant_url)
       const settings = loadSettings()
       const base = merchant_url.replace(/\/$/, '')
       const body: Record<string, unknown> = {}
+      if (sku) body.sku = sku
       if (amount_sat) body.amount_sat = amount_sat
       if (label) body.label = label
       if (amount_fiat) body.amount_fiat = amount_fiat
@@ -345,6 +351,13 @@ export class WalletApiServer {
         txid: null, on_chain_confs: 0, merchant_status: 'pending', needs_attention: false
       })
       return data
+    }
+
+    if (method === 'POST' && path === '/api/products') {
+      const { merchant_url } = ProductsSchema.parse(params)
+      assertTrustedMerchant(merchant_url)
+      const base = merchant_url.replace(/\/$/, '')
+      return httpGet(`${base}/products`)
     }
 
     if (method === 'POST' && path === '/api/invoice-status') {
