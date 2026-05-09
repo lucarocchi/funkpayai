@@ -114,7 +114,14 @@ export default function Settings(): JSX.Element {
       <Section title="Network">
         <label style={styles.label}>Bitcoin network</label>
         <select style={styles.select} value={s.network ?? 'mainnet'}
-          onChange={(e) => set({ network: e.target.value as 'mainnet' | 'testnet' })}>
+          onChange={(e) => {
+            const network = e.target.value as 'mainnet' | 'testnet'
+            const newPort = network === 'testnet' ? '18332' : '8332'
+            const updatedUrl = s.rpcUrl.replace(/:(\d+)$/, (_, p) =>
+              p === '8332' || p === '18332' ? `:${newPort}` : `:${p}`
+            )
+            set({ network, rpcUrl: updatedUrl })
+          }}>
           <option value="mainnet">Mainnet — real BTC</option>
           <option value="testnet">Testnet — test BTC, no value</option>
         </select>
