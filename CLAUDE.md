@@ -86,8 +86,9 @@ npm run package      # genera installer (dmg/exe/AppImage)
 | `send_payment` | Invia BTC (soggetto ad approval policy) |
 | `get_transaction` | Stato e conferme di una tx |
 | `list_transactions` | Storico transazioni |
-| `create_invoice` | Crea invoice su merchant btcfunkpay; allega shipping/billing da Settings |
+| `create_invoice` | Crea invoice su merchant btcfunkpay; allega shipping/billing da Settings; accetta `sku` |
 | `get_invoice_status` | Polling stato invoice su merchant btcfunkpay |
+| `list_products` | Lista prodotti disponibili su un merchant btcfunkpay |
 
 **Claude Code config:**
 ```json
@@ -108,7 +109,7 @@ Configurabile in Settings:
 - `startServices()` avvia sia bitcoind che MCP server
 - Porta MCP occupata → auto-libera con `lsof` e riprova
 
-## Stato corrente (2026-05-06)
+## Stato corrente (2026-05-09)
 
 - ✅ Scaffold completo, typecheck OK
 - ✅ Installer con Terminal.app reale + fs.watch
@@ -117,6 +118,8 @@ Configurabile in Settings:
 - ✅ Dashboard mostra nodo verde + MCP verde
 - ✅ Shipping/billing info nelle Settings (per acquisti beni fisici)
 - ✅ MCP tools `create_invoice` e `get_invoice_status` (integrazione merchant btcfunkpay)
+- ✅ MCP tool `list_products` — lista prodotti merchant
+- ✅ `create_invoice` accetta `sku` — il merchant risolve il prezzo
 - 🔲 Light/dark theme toggle
 - 🔲 Developer ID Application certificate per distribuzione
 - 🔲 App mobile FunkPay (futuro — push notification per approvals)
