@@ -230,6 +230,10 @@ export class WalletApiServer {
     console.log(`[api] listening on http://127.0.0.1:${port}/api`)
   }
 
+  get isListening(): boolean {
+    return this.httpServer?.listening ?? false
+  }
+
   async stop(): Promise<void> {
     if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null }
     await new Promise<void>((resolve, reject) =>

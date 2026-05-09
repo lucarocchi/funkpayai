@@ -326,7 +326,7 @@ ipcMain.handle('status', async () => {
   const dataDirName = network === 'testnet' ? 'bitcoin-testnet' : 'bitcoin'
   const dataDir = join(app.getPath('userData'), dataDirName)
   const bitcoindPath = join(app.getPath('userData'), 'bitcoin-core', 'bitcoind')
-  return { nodeStatus, mcp: walletApi !== null, mcpPort: settings.mcpPort, cliPath, cliInstallFailed, bitcoindPath, dataDir, network, connectionExhausted }
+  return { nodeStatus, mcp: walletApi?.isListening ?? false, mcpPort: settings.mcpPort, cliPath, cliInstallFailed, bitcoindPath, dataDir, network, connectionExhausted }
 })
 
 app.whenReady().then(async () => {

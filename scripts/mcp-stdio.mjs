@@ -185,7 +185,15 @@ const TOOLS = [
 // ── Tool dispatch ─────────────────────────────────────────────────────────────
 
 async function callTool(name, args) {
-  if (!await isReady()) await ensureAppRunning()
+  if (!await isReady()) {
+    await ensureAppRunning()
+    if (!await isReady()) {
+      return err(
+        'FunkPay MCP app is not responding on port 3282.\n' +
+        'The app may be open but the Wallet API has stopped — please restart FunkPay MCP.'
+      )
+    }
+  }
   // Re-read token on every call — handles the case where the proxy started
   // before the app had written the token file (e.g. first launch via auto-launch).
   try {
