@@ -208,6 +208,21 @@ const TOOLS = [
       properties: { domain: { type: 'string', description: 'Domain to probe, e.g. btcfunk.com' } },
       required: ['domain']
     }
+  },
+  {
+    name: 'discover_products',
+    description: 'Browse or search the product catalog of a FunkPay merchant. Use for human-in-the-loop flows: show the catalog, let the user pick, then call create_invoice with the chosen SKU. If query is provided, filters by name/description/SKU. If neither sku nor query is provided, returns a paginated list of all active products.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        merchant_url: { type: 'string', description: 'Base URL of the btcfunkpay merchant server' },
+        sku: { type: 'string', description: 'Look up a single product by SKU' },
+        query: { type: 'string', description: 'Search term — filters name, description, and SKU' },
+        limit: { type: 'number', description: 'Page size (1–100, default 20)' },
+        offset: { type: 'number', description: 'Page offset (default 0)' }
+      },
+      required: ['merchant_url']
+    }
   }
 ]
 
@@ -306,6 +321,11 @@ async function callTool(name, args) {
 
     case 'discover_merchant': {
       const data = await apiPost('/discover', { domain: args.domain })
+      return ok(JSON.stringify(data, null, 2))
+    }
+
+    case 'discover_products': {
+      const data = await apiPost('/products', args)
       return ok(JSON.stringify(data, null, 2))
     }
 

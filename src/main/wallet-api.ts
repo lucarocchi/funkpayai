@@ -85,6 +85,14 @@ const LimitSchema = z.object({
 
 const DiscoverSchema = z.object({ domain: z.string().min(3).max(253) })
 
+const ProductsSchema = z.object({
+  merchant_url: z.string().url().max(256),
+  sku: z.string().max(32).optional(),
+  query: z.string().max(200).optional(),
+  limit: z.number().int().min(1).max(100).optional(),
+  offset: z.number().int().min(0).optional(),
+})
+
 // ── Security helpers ──────────────────────────────────────────────────────────
 
 // F-07: validate merchant URL against the user's trusted list
@@ -421,6 +429,20 @@ export class WalletApiServer {
       const data = await httpGet(`https://${hostname}/.well-known/funkpay.json`) as Record<string, unknown>
       if (!data.server) throw new Error(`${hostname} has /.well-known/funkpay.json but missing "server" field`)
       return { domain: hostname, server: data.server, name: data.name ?? hostname }
+    }
+
+    if (method === 'POST' && path === '/api/products') {
+      const { merchant_url, sku, query, limit, offset } = ProductsSchema.parse(params)
+      assertTrustedMerchant(merchant_url)
+      const base = merchant_url.replace(/\/$/, '')
+      const qs = new URLSearchParams()
+      if (sku) qs.set('sku', sku)
+      if (query) qs.set('query', query)
+      if (limit !== undefined) qs.set('limit', String(limit))
+      if (offset !== undefined) qs.set('offset', String(offset))
+      const url = `${base}/funkpay/product${qs.toString() ? '?' + qs.toString() : ''}`
+      const data = await httpGet(url)
+      return data
     }
 
     throw new Error(`Unknown endpoint: ${method} ${path}`)
