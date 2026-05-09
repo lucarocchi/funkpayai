@@ -8,7 +8,7 @@ Your keys, your node, your backup. FunkPay MCP never connects to external server
 
 ### What the agent can do
 
-Give your AI agent a task like *"buy this from shop.example.com"* and it handles the full flow autonomously:
+Give your AI agent a task like *"buy the monthly plan from shop.funkpay.dev"* and it handles the full flow autonomously:
 
 1. **Discovers** the merchant's FunkPay server from the domain
 2. **Creates an invoice** — gets a Bitcoin address and amount
