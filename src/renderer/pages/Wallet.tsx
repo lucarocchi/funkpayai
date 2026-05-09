@@ -55,10 +55,10 @@ export default function Wallet(): JSX.Element {
         ) : (
           <>
             <div style={s.balanceAmt}>
-              {balanceSat !== null ? balanceSat.toLocaleString() : '—'} <span style={s.unit}>sat</span>
+              {balanceSat !== null ? (balanceSat / 1e8).toFixed(8) : '—'} <span style={s.unit}>BTC</span>
             </div>
             <div style={s.balanceBtc}>
-              {balanceSat !== null ? (balanceSat / 1e8).toFixed(8) : '—'} BTC
+              {balanceSat !== null ? balanceSat.toLocaleString() : '—'} sat
             </div>
           </>
         )}
