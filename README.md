@@ -1,6 +1,12 @@
 # FunkPay MCP
 
-**Bitcoin wallet for AI agents.**
+**Bitcoin wallet for AI agents. Self-custodial, runs on your machine.**
+
+Your keys, your node, your backup. FunkPay MCP never connects to external servers — the wallet lives entirely on your machine, secured by your Bitcoin Core node. No accounts, no custodians, no third parties holding your funds.
+
+> **Want to try it first?** Switch to **testnet** in Settings — test BTC has no value and you can get it from a faucet in seconds.
+
+---
 
 FunkPay MCP has two components that work together:
 
