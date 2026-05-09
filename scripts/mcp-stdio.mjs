@@ -33,31 +33,59 @@ try {
   APP_EXE_PATH = readFileSync(join(homedir(), '.funkpay', 'app-path'), 'utf-8').trim()
 } catch { /* fall back to name-based launch */ }
 
-// ── Auto-launch ───────────────────────────────────────────────────────────────
+// ── Auto-launch / auto-restart ────────────────────────────────────────────────
 
-async function ensureAppRunning() {
-  if (await isReady()) return
-
-  process.stderr.write('[funkpay-mcp] App not running — launching FunkPay MCP...\n')
+function killApp() {
   try {
     if (process.platform === 'darwin') {
-      // F-29: prefer the exe path written by the app (stable across renames/installs)
-      // process.execPath is inside the .app bundle; extract the .app for `open`
-      if (APP_EXE_PATH && APP_EXE_PATH.includes('.app/')) {
-        const appBundle = APP_EXE_PATH.split('.app/')[0] + '.app'
-        spawn('open', [appBundle], { detached: true, stdio: 'ignore' }).unref()
+      if (APP_EXE_PATH) {
+        const appBundle = APP_EXE_PATH.includes('.app/')
+          ? APP_EXE_PATH.split('.app/')[0] + '.app'
+          : APP_EXE_PATH
+        // pkill by bundle path — kills the Electron main process
+        spawn('pkill', ['-f', appBundle], { stdio: 'ignore' }).unref()
       } else {
-        spawn('open', ['-a', 'FunkPay MCP'], { detached: true, stdio: 'ignore' }).unref()
+        spawn('pkill', ['-f', 'FunkPay MCP'], { stdio: 'ignore' }).unref()
       }
     } else if (process.platform === 'win32') {
-      const target = APP_EXE_PATH || 'FunkPay MCP.exe'
-      spawn(target, [], { detached: true, stdio: 'ignore' }).unref()
-    } else {
-      const target = APP_EXE_PATH || 'funkpaymcp'
-      spawn(target, [], { detached: true, stdio: 'ignore' }).unref()
+      spawn('taskkill', ['/IM', 'FunkPay MCP.exe', '/F'], { stdio: 'ignore' }).unref()
     }
+  } catch { /* ignore */ }
+}
+
+function launchApp() {
+  if (process.platform === 'darwin') {
+    // -g: do not bring app to foreground
+    if (APP_EXE_PATH && APP_EXE_PATH.includes('.app/')) {
+      const appBundle = APP_EXE_PATH.split('.app/')[0] + '.app'
+      spawn('open', ['-g', appBundle], { detached: true, stdio: 'ignore' }).unref()
+    } else {
+      spawn('open', ['-g', '-a', 'FunkPay MCP'], { detached: true, stdio: 'ignore' }).unref()
+    }
+  } else if (process.platform === 'win32') {
+    const target = APP_EXE_PATH || 'FunkPay MCP.exe'
+    spawn(target, [], { detached: true, stdio: 'ignore' }).unref()
+  } else {
+    const target = APP_EXE_PATH || 'funkpaymcp'
+    spawn(target, [], { detached: true, stdio: 'ignore' }).unref()
+  }
+}
+
+async function ensureAppRunning(forceRestart = false) {
+  if (!forceRestart && await isReady()) return
+
+  if (forceRestart) {
+    process.stderr.write('[funkpay-mcp] Wallet API unresponsive — restarting FunkPay MCP...\n')
+    killApp()
+    await sleep(2000)
+  } else {
+    process.stderr.write('[funkpay-mcp] App not running — launching FunkPay MCP...\n')
+  }
+
+  try {
+    launchApp()
   } catch {
-    process.stderr.write('[funkpay-mcp] Could not launch app — please open FunkPay MCP manually.\n')
+    process.stderr.write('[funkpay-mcp] Could not launch app.\n')
     return
   }
 
@@ -68,7 +96,7 @@ async function ensureAppRunning() {
       return
     }
   }
-  process.stderr.write('[funkpay-mcp] App did not start in 30s — tool calls will fail until it is open.\n')
+  process.stderr.write('[funkpay-mcp] App did not start in 30s.\n')
 }
 
 async function isReady() {
@@ -188,10 +216,11 @@ async function callTool(name, args) {
   if (!await isReady()) {
     await ensureAppRunning()
     if (!await isReady()) {
-      return err(
-        'FunkPay MCP app is not responding on port 3282.\n' +
-        'The app may be open but the Wallet API has stopped — please restart FunkPay MCP.'
-      )
+      // App was running but API was down — force restart
+      await ensureAppRunning(true)
+      if (!await isReady()) {
+        return err('FunkPay MCP could not start after restart. Check that the app is installed correctly.')
+      }
     }
   }
   // Re-read token on every call — handles the case where the proxy started
