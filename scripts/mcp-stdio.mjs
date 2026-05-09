@@ -171,17 +171,6 @@ const TOOLS = [
     }
   },
   {
-    name: 'list_products',
-    description: 'List products available on a FunkPay merchant server',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        merchant_url: { type: 'string', description: 'Base URL of the btcfunkpay merchant server' }
-      },
-      required: ['merchant_url']
-    }
-  },
-  {
     name: 'get_invoice_status',
     description: 'Poll the status of a FunkPay payment invoice',
     inputSchema: {
@@ -308,11 +297,6 @@ async function callTool(name, args) {
       }
 
       return err(`Timeout: payment not confirmed within ${timeout_seconds}s. Check the Payments tab in FunkPay MCP.`)
-    }
-
-    case 'list_products': {
-      const data = await apiPost('/products', { merchant_url: args.merchant_url })
-      return ok(JSON.stringify(data, null, 2))
     }
 
     case 'list_merchants': {
