@@ -278,7 +278,7 @@ async function callTool(name, args) {
       const config = await apiGet('/config')
       const required = config.confirmationsRequired ?? 0
       const deadline = Date.now() + timeout_seconds * 1000
-      const POLL = 15_000
+      const POLL = 5_000
 
       while (Date.now() < deadline) {
         await sleep(POLL)
