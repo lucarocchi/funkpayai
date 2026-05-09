@@ -192,7 +192,7 @@ export class WalletApiServer {
   }
 
   async start(port: number): Promise<void> {
-    this.httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+    const handler = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
       if (!req.url?.startsWith('/api')) {
         res.writeHead(404)
         res.end()
@@ -214,21 +214,37 @@ export class WalletApiServer {
         res.writeHead(msg === 'Unauthorized' ? 401 : 500)
         res.end(JSON.stringify({ error: msg }))
       }
-    })
+    }
 
-    await new Promise<void>((resolve, reject) => {
-      this.httpServer!.listen(port, '127.0.0.1', resolve)
-      this.httpServer!.once('error', async (err: NodeJS.ErrnoException) => {
-        if (err.code === 'EADDRINUSE') {
+    const MAX_ATTEMPTS = 3
+    let lastErr: Error = new Error(`Port ${port} unavailable after ${MAX_ATTEMPTS} attempts`)
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      // Fresh server each attempt — avoids reusing a server in error state
+      const server = createServer(handler)
+      try {
+        await new Promise<void>((resolve, reject) => {
+          server.once('error', reject)
+          server.listen(port, '127.0.0.1', resolve)
+        })
+        this.httpServer = server
+        console.log(`[api] listening on http://127.0.0.1:${port}/api`)
+        return
+      } catch (e: unknown) {
+        const err = e as NodeJS.ErrnoException
+        server.close()
+        if (err.code === 'EADDRINUSE' && attempt < MAX_ATTEMPTS) {
+          console.warn(`[api] port ${port} in use (attempt ${attempt}), freeing…`)
           await freePort(port)
-          this.httpServer!.listen(port, '127.0.0.1', resolve)
-        } else {
-          reject(err)
+          await new Promise((r) => setTimeout(r, 500))
+          lastErr = err
+          continue
         }
-      })
-    })
+        throw err
+      }
+    }
 
-    console.log(`[api] listening on http://127.0.0.1:${port}/api`)
+    throw lastErr
   }
 
   get isListening(): boolean {
