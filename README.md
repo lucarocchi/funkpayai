@@ -1,20 +1,32 @@
 # FunkPay MCP
 
-**Bitcoin wallet for AI agents.** A desktop app that connects to your Bitcoin Core node and exposes an MCP server — so any AI agent (Claude Code, Cursor, Windsurf, etc.) can send and receive Bitcoin autonomously, within the limits you configure.
+**Bitcoin wallet for AI agents.**
+
+FunkPay MCP has two components that work together:
+
+- A **standard MCP stdio server** — compatible with Claude Code, Cursor, Windsurf, and any MCP client. Installed at `~/.funkpay/mcp-stdio.mjs`, it speaks the MCP protocol and auto-launches the app if it's not running.
+- A **desktop app** — the intermediary between the agent and Bitcoin. It manages the wallet, enforces your approval policy, tracks payments, and talks to Bitcoin Core over RPC.
+
+The agent never touches Bitcoin directly — every call goes through the app, where you stay in control.
 
 Part of the [FunkPay](https://funkpay.dev) ecosystem.
 
 ---
 
-## How it works
+## Architecture
 
-FunkPay MCP is an Electron desktop app. It:
-
-1. Connects to your local **Bitcoin Core node** via RPC
-2. Runs a local **REST API** on port 3282
-3. Installs a lightweight **stdio MCP proxy** at `~/.funkpay/mcp-stdio.mjs`
-
-Your AI agent talks to the proxy over stdio. The proxy forwards calls to the REST API. The API talks to Bitcoin Core. If the app is not running when the agent tries to call a tool, the proxy auto-launches it.
+```
+AI Agent (Claude Code, Cursor…)
+    │  MCP stdio
+    ▼
+~/.funkpay/mcp-stdio.mjs   ← standard MCP server, auto-installs
+    │  HTTP + token auth
+    ▼
+FunkPay MCP desktop app    ← wallet, approvals, payment ledger
+    │  JSON-RPC
+    ▼
+Bitcoin Core (bitcoind)    ← your local node
+```
 
 ---
 
