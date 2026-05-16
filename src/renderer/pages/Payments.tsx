@@ -2,6 +2,14 @@ import { useEffect, useState } from 'react'
 import { RefreshCw, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react'
 import type { PaymentRecord } from '../../main/payments'
 
+function fmtAge(ts: number): string {
+  const s = Math.floor((Date.now() - ts) / 1000)
+  if (s < 60) return 'just now'
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`
+  return `${Math.floor(s / 86400)}d ago`
+}
+
 const TABS = ['all', 'pending', 'detected', 'confirmed', 'expired'] as const
 type Tab = typeof TABS[number]
 
@@ -143,7 +151,9 @@ function PaymentRow({ record: r, onReverify, verifying }: {
             </div>
           )}
           <div style={s.meta}>
-            {new Date(r.created_at).toLocaleString()} · {r.on_chain_confs} confs on-chain
+            {new Date(r.created_at).toLocaleString()}
+            {r.on_chain_confs > 0 && ` · ${r.on_chain_confs} confs`}
+            {' · checked '}{fmtAge(r.last_checked)}
           </div>
         </div>
 
