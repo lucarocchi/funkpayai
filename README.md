@@ -195,3 +195,7 @@ npm run dev        # dev mode with hot reload
 npm run build      # production build
 npm run package    # generate DMG / installer
 ```
+
+## License
+
+MIT — see [LICENSE](LICENSE).
