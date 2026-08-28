@@ -1,0 +1,12 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.lucarocchi/funkpayai",
+  "title": "FunkPayAI",
+  "description": "Bitcoin wallet for AI agents — on-chain payments from a local Bitcoin Core node.",
+  "version": "0.1.0",
+  "websiteUrl": "https://funkpay.dev/docs.html",
+  "repository": {
+    "url": "https://github.com/lucarocchi/funkpayai",
+    "source": "github"
+  }
+}
